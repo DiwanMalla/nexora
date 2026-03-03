@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexora — Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0A0A0A;
+      --surface: rgba(255,255,255,0.05);
+      --border: rgba(255,255,255,0.1);
+      --violet: #7C3AED;
+      --cyan: #06B6D4;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { display: flex; flex: 1; min-height: 0; }
+    nav {
+      width: 260px;
+      min-width: 260px;
+      padding: 1.5rem 0;
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    nav h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 0 1.25rem;
+      margin: 0 0 0.5rem;
+    }
+    nav a {
+      display: block;
+      padding: 0.4rem 1.25rem;
+      color: var(--text);
+      font-weight: 500;
+      border-left: 2px solid transparent;
+      margin-left: 0;
+    }
+    nav a:hover { background: rgba(255,255,255,0.05); color: var(--cyan); }
+    nav a.active { border-left-color: var(--violet); color: var(--violet); }
+    main {
+      flex: 1;
+      padding: 2rem 3rem 4rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    header.hero {
+      text-align: center;
+      padding: 2rem 0 3rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    header.hero h1 { font-size: 2rem; margin: 0 0 0.5rem; color: #fff; }
+    header.hero p { color: var(--text-muted); margin: 0; font-size: 1.1rem; }
+    section.doc {
+      margin-bottom: 3rem;
+      scroll-margin-top: 1rem;
+    }
+    section.doc h2 {
+      font-size: 1.5rem;
+      color: var(--violet);
+      margin: 0 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    section.doc h3 { font-size: 1.15rem; margin: 1.5rem 0 0.5rem; color: var(--cyan); }
+    section.doc h4 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+    section.doc ul, section.doc ol { margin: 0.5rem 0 1rem; padding-left: 1.5rem; }
+    section.doc li { margin: 0.25rem 0; }
+    section.doc pre {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      margin: 0.75rem 0;
+    }
+    section.doc table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      font-size: 0.9rem;
+    }
+    section.doc th, section.doc td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    section.doc th { background: var(--surface); color: var(--text-muted); font-weight: 600; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge-p0 { background: rgba(124,58,237,0.3); color: var(--violet); }
+    .badge-p1 { background: rgba(6,182,212,0.2); color: var(--cyan); }
+    @media (max-width: 768px) {
+      .container { flex-direction: column; }
+      nav { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--border); }
+      main { padding: 1.5rem 1.25rem 2rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <h2>Docs</h2>
+      <a href="#readme" class="nav-link">Readme</a>
+      <a href="#planning" class="nav-link">Planning</a>
+      <a href="#architecture" class="nav-link">Architecture</a>
+      <a href="#env" class="nav-link">Environment (ENV)</a>
+      <a href="#milestones" class="nav-link">Milestones</a>
+      <a href="#database" class="nav-link">Database</a>
+      <a href="#api" class="nav-link">API</a>
+      <a href="#agents" class="nav-link">Agents</a>
+      <a href="#ui-components" class="nav-link">UI Components</a>
+      <a href="#competitors" class="nav-link">Competitors</a>
+    </nav>
+    <main>
+      <header class="hero">
+        <h1>🌌 Nexora</h1>
+        <p>AI Agentic Search & Action Platform — Documentation</p>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem;">All docs live in the <code>docs/</code> folder. Open <code>Readme.md</code> etc. from this folder.</p>
+      </header>
+
+      <section id="readme" class="doc">
+        <h2>Readme</h2>
+        <p>Nexora is a <strong>Next-Era Agentic Engine</strong>: one platform, every AI, Search → Action. Users discover agents, chat with 10+ models side-by-side, and get <strong>Execution Blocks</strong> (Export to Sheets, Draft Email, Analyze Code).</p>
+        <h3>Key features</h3>
+        <ul>
+          <li><strong>Multi-Model Canvas</strong> — Compare Claude 3.5 and GPT-4o side-by-side.</li>
+          <li><strong>Verifiable Search</strong> — Every claim backed by citations; real-time web verification.</li>
+          <li><strong>Task Orchestration</strong> — LangGraph Researcher / Analyst agents.</li>
+          <li><strong>Local-First Caching</strong> — Next.js 16 <code>"use cache"</code> for repeated queries.</li>
+        </ul>
+        <h3>Tech stack (2026)</h3>
+        <p>Next.js 16.2+, React 19, TypeScript 5.5+, Turbopack, React Compiler · Supabase (PostgreSQL, pgvector) · OpenRouter · Vercel AI SDK v4 · LangGraph.js · Tavily + Firecrawl · <code>proxy.ts</code> · Vercel.</p>
+        <p><a href="Readme.md">Full Readme.md</a></p>
+      </section>
+
+      <section id="planning" class="doc">
+        <h2>Planning</h2>
+        <p><strong>Vision:</strong> One-stop AI destination with Search-to-Action and Execution Blocks. Strategic pillars: Search-to-Action · Agentic Loops (LangGraph) · Unified Canvas · <strong>Privacy & Security First</strong>.</p>
+        <h3>Target users</h3>
+        <p>Primary MVP: Students + Professionals. Also Developers, Creators, Businesses, Casual users.</p>
+        <h3>P0 — Must have (MVP)</h3>
+        <ul>
+          <li>Security & privacy baseline (auth, secrets server-side, rate limit, HTTPS, RLS, no PII in logs)</li>
+          <li>User auth (Google + email)</li>
+          <li>Multi-model chat + streaming (OpenRouter)</li>
+          <li>Agentic search with citations (Tavily + optional Firecrawl), <code>"use cache"</code></li>
+          <li>Core agents (Researcher, Analyst) + task routing + Agent discovery</li>
+          <li>Execution Blocks (1–2 "Next step" actions per result)</li>
+          <li>Conversation history, side-by-side comparison (Canvas), responsive, Free + Pro (Stripe)</li>
+        </ul>
+        <h3>Privacy & security</h3>
+        <p>Principles: Privacy by design, least privilege, secure by default, transparency. P0: Auth, server-side secrets, <code>proxy.ts</code> rate limiting, HTTPS, RLS, no PII in logs, input validation, <code>npm audit</code>.</p>
+        <p><a href="Planning.md">Full Planning.md</a></p>
+      </section>
+
+      <section id="architecture" class="doc">
+        <h2>Architecture</h2>
+        <p>Request path: Browser → Vercel Edge → Next.js 16 App Router → <code>proxy.ts</code> (rate limit & route) → API Routes / Server Actions → LangGraph (Researcher / Analyst / Coder) + Tavily / Firecrawl / <code>"use cache"</code> → OpenRouter, Supabase, Stripe.</p>
+        <h3>Key decisions</h3>
+        <ul>
+          <li><strong>proxy.ts</strong> — Edge traffic controller; no AI logic in legacy middleware.</li>
+          <li><strong>LangGraph</strong> — Stateful agent workflows; router → Researcher / Analyst / Coder.</li>
+          <li><strong>Tavily + Firecrawl</strong> — Search + clean markdown for citations.</li>
+          <li><strong>"use cache"</strong> — RAG/result persistence; no Redis in core path.</li>
+          <li><strong>Supabase</strong> — Auth, PostgreSQL, pgvector, RLS.</li>
+        </ul>
+        <h3>Data flows</h3>
+        <p><strong>Chat:</strong> useChat → POST /api/chat → proxy → OpenRouter stream → persist message. <strong>Agentic search:</strong> POST /api/agent → LangGraph router → Researcher (Tavily, Firecrawl, cache) → citations + Execution Blocks → stream. <strong>Agent discovery:</strong> /discover → /api/agents/search (pgvector) → load agent config for chat/search.</p>
+        <p><a href="Architecture.md">Full Architecture.md</a></p>
+      </section>
+
+      <section id="env" class="doc">
+        <h2>Environment (ENV)</h2>
+        <p>Copy <code>.env.example</code> to <code>.env.local</code>. Never commit real keys. All secrets server-side only.</p>
+        <h3>Required</h3>
+        <table>
+          <thead><tr><th>Variable</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>Supabase project URL</td></tr>
+            <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Supabase service role (server-only)</td></tr>
+            <tr><td><code>OPENROUTER_API_KEY</code></td><td>OpenRouter API key</td></tr>
+            <tr><td><code>TAVILY_API_KEY</code></td><td>Tavily search API</td></tr>
+          </tbody>
+        </table>
+        <h3>Optional</h3>
+        <p><code>FIRECRAWL_API_KEY</code>, <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_WEBHOOK_SECRET</code>, <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>, <code>E2B_API_KEY</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> (Auth).</p>
+        <p><a href="ENV.md">Full ENV.md</a></p>
+      </section>
+
+      <section id="milestones" class="doc">
+        <h2>Milestones</h2>
+        <ul>
+          <li><strong>M1 (Weeks 1–2)</strong> — Next.js 16, Supabase Auth, proxy.ts, /api/chat, basic chat UI, conversation save. Exit: sign in + chat + history.</li>
+          <li><strong>M2 (Weeks 3–4)</strong> — Tavily, LangGraph Researcher + Analyst, /api/agent, search UI with citations + Execution Blocks, agent discovery. Exit: agentic search + citations + actions.</li>
+          <li><strong>M3 (Weeks 5–6)</strong> — Canvas comparison, workspace/artifacts, responsive, Stripe Free/Pro, security checklist. Exit: MVP complete.</li>
+          <li><strong>M4 (Month 2–3)</strong> — pgvector agent search, Coder (E2B), 10+ agents, file upload, profile/dashboard, CSP, audit logging.</li>
+          <li><strong>M5+</strong> — Custom builder, doc editor, voice, teams, API, compliance (see Planning P2/P3).</li>
+        </ul>
+        <p><a href="MILESTONES.md">Full MILESTONES.md</a></p>
+      </section>
+
+      <section id="database" class="doc">
+        <h2>Database</h2>
+        <p>Supabase (PostgreSQL + pgvector). All tables use <strong>RLS</strong> so users only see their own data.</p>
+        <h3>Core tables</h3>
+        <ul>
+          <li><strong>profiles</strong> — id (auth), email, display_name, avatar_url, tier (free/pro/teams), credits_remaining, timestamps.</li>
+          <li><strong>conversations</strong> — id, user_id, title, agent_id, timestamps.</li>
+          <li><strong>messages</strong> — id, conversation_id, role, content, model, sources (jsonb), created_at.</li>
+          <li><strong>agents</strong> — id, slug, name, description, category, system_prompt, default_model, embedding (vector), is_featured, timestamps.</li>
+          <li><strong>sources</strong> — id, message_id, title, url, favicon, snippet, created_at.</li>
+          <li><strong>usage_logs</strong> (optional) — user_id, action, model, metadata (no PII), created_at.</li>
+        </ul>
+        <p><a href="DATABASE.md">Full DATABASE.md</a></p>
+      </section>
+
+      <section id="api" class="doc">
+        <h2>API</h2>
+        <p>All routes behind <code>proxy.ts</code>. Auth required unless noted.</p>
+        <h3>Endpoints</h3>
+        <table>
+          <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>POST</td><td><code>/api/chat</code></td><td>Direct chat (streaming). Body: messages, model, conversationId?</td></tr>
+            <tr><td>POST</td><td><code>/api/agent</code></td><td>Agentic search. Body: query, agentId?, model?, options?</td></tr>
+            <tr><td>GET</td><td><code>/api/agents</code></td><td>List agents (featured, category, limit)</td></tr>
+            <tr><td>GET</td><td><code>/api/agents/search?q=</code></td><td>Semantic agent search (pgvector)</td></tr>
+            <tr><td>GET</td><td><code>/api/agents/[id]</code></td><td>Single agent config</td></tr>
+            <tr><td>POST</td><td><code>/api/mcp/...</code></td><td>MCP tools (auth + rate limit via proxy)</td></tr>
+          </tbody>
+        </table>
+        <p>Errors: 401 Unauthorized, 429 Rate limit, 400 Validation, 500 Server (no internal details).</p>
+        <p><a href="API.md">Full API.md</a></p>
+      </section>
+
+      <section id="agents" class="doc">
+        <h2>Agents</h2>
+        <p>LangGraph-powered workflows. Router sends query to best-fit agent; users can pick from discover.</p>
+        <table>
+          <thead><tr><th>Agent</th><th>Slug</th><th>Purpose</th><th>Tools</th></tr></thead>
+          <tbody>
+            <tr><td>Researcher</td><td><code>researcher</code></td><td>Deep search, fact-check, citations</td><td>Tavily, Firecrawl, "use cache"</td></tr>
+            <tr><td>Analyst</td><td><code>analyst</code></td><td>Data/CSV analysis</td><td>Cached/uploaded data</td></tr>
+            <tr><td>Coder <span class="badge badge-p1">P1</span></td><td><code>coder</code></td><td>Code gen, run, debug</td><td>E2B sandbox</td></tr>
+          </tbody>
+        </table>
+        <p>Categories: Research, Data, Code, Writing (future), Creative (future). Model routing: gpt-4o-mini for routing; claude-3.5-sonnet / o1 for reasoning. Central config: <code>src/lib/ai/models.ts</code>.</p>
+        <p><a href="AGENTS.md">Full AGENTS.md</a></p>
+      </section>
+
+      <section id="ui-components" class="doc">
+        <h2>UI Components</h2>
+        <p>Design: Dark default (#0A0A0A), Violet #7C3AED, Cyan #06B6D4, glassmorphism, Inter + JetBrains Mono.</p>
+        <h3>Layout</h3>
+        <p>Sidebar, CommandK, GlassCard/GlassPanel, AppShell.</p>
+        <h3>Chat</h3>
+        <p>ChatInterface, ModelSelector, PromptInput, MessageList, ThinkingIndicator.</p>
+        <h3>AI</h3>
+        <p>StreamingText, SourceList, SourceCard, ActionFooter, ResearchResult ("use cache" where appropriate).</p>
+        <h3>Canvas</h3>
+        <p>Canvas, ArtifactEditor, ArtifactPreview, ComparisonView.</p>
+        <p>No raw HTML from AI — Markdown + these components. Use React 19 startTransition for view transitions.</p>
+        <p><a href="UI_COMPONENTS.md">Full UI_COMPONENTS.md</a></p>
+      </section>
+
+      <section id="competitors" class="doc">
+        <h2>Competitors</h2>
+        <p>Research: <strong>Perplexity</strong> (cited search, Pro $20/mo; weak on actions & niche depth), <strong>Genspark</strong> (Sparkpages, multi-agent, export; $20–80/mo, complex), <strong>AI Fiesta</strong> (9+ models ~$12/mo, side-by-side; not search-first, 3 free msgs), <strong>Kumari.ai</strong> (routing transparency).</p>
+        <h3>Nexora vs them</h3>
+        <p>Search + agents + <strong>Execution Blocks</strong> from day one; simpler UX & cheaper Pro ($12); transparency (why this agent/model); privacy-first. No slides/video/phone in MVP — we win on cited search + one clear action, then add Canvas and more agents.</p>
+        <h3>Start simple → advance</h3>
+        <ul>
+          <li><strong>Phase 1:</strong> Cited search, one agent (Researcher), one Execution Block, 3–5 model chat, generous free tier.</li>
+          <li><strong>Phase 2:</strong> Analyst agent, more actions, Canvas, agent discovery, Pro $12.</li>
+          <li><strong>Phase 3:</strong> Transparency UI, Coder agent, 10+ agents, API, privacy/compliance.</li>
+        </ul>
+        <p><a href="COMPETITORS.md">Full COMPETITORS.md</a></p>
+      </section>
+
+      <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.9rem;">
+        Nexora docs — All files in <code>docs/</code>. Readme · Planning · Architecture · ENV · Milestones · Database · API · Agents · UI Components · Competitors. MIT.
+      </footer>
+    </main>
+  </div>
+  <script>
+    document.querySelectorAll('.nav-link').forEach(function(link) {
+      link.addEventListener('click', function() {
+        document.querySelectorAll('.nav-link').forEach(function(l) { l.classList.remove('active'); });
+        this.classList.add('active');
+      });
+    });
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        var id = entry.target.id;
+        document.querySelectorAll('.nav-link').forEach(function(l) {
+          l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+        });
+      });
+    }, { rootMargin: '-80px 0px -60% 0px' });
+    document.querySelectorAll('section.doc').forEach(function(s) { observer.observe(s); });
+  </script>
+</body>
+</html>

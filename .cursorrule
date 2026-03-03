@@ -1,0 +1,193 @@
+# 🌌 NEXORA - Cursor AI Rules (2026 Stable Edition)
+
+# The Agentic Search & Action Platform
+
+# Stack: Next.js 16.2, TypeScript 5.5+, Supabase, OpenRouter, Vercel AI SDK v4, LangGraph
+
+# 📦 GIT & GITHUB (Professional Workflow)
+# Repo: https://github.com/DiwanMalla/nexora
+# - Push to GitHub regularly: small, logical commits; clear messages (e.g. "feat: add chat API", "fix: nav mobile layout").
+# - Never commit .env, .env.local, or secrets; .gitignore is configured.
+# - Prefer main as default branch; use feature branches for larger work and open PRs.
+# - When asked to "push to GitHub" or "save to repo": run git add, commit, push to origin main (or current branch).
+
+## 🧠 PROJECT CONTEXT
+
+Nexora is a **Next-Era Agentic Engine** designed to outperform general search engines (Perplexity) and simple aggregators (AI Fiesta).
+
+- **Search-to-Action:** Don't just find info; provide "Execution Blocks" (e.g., "Export to Sheets", "Draft Email", "Analyze Code").
+- **Agentic Loops:** Use LangGraph for multi-step reasoning, fact-checking, and self-correction.
+- **Unified Interface:** 10+ models (via OpenRouter) with side-by-side comparison and a shared "Canvas" workspace.
+
+## 🛠️ TECH STACK (2026 STANDARDS)
+
+- **Framework:** Next.js 16.2+ (Stable) with **React Compiler** and **Turbopack**.
+- **Caching:** Stable `"use cache"` directive (Fine-grained AI result persistence).
+- **Orchestration:** **LangGraph.js** (Stateful Agent Workflows).
+- **Search/Data:** **Tavily API** (Search) + **Firecrawl** (Clean Markdown scraping).
+- **AI Streaming:** Vercel AI SDK v4 (`streamText`, `streamObject`).
+- **Middleware:** `proxy.ts` (Next 16 pattern) for AI rate-limiting and request routing.
+
+## 📁 FOLDER STRUCTURE
+
+````text
+src/
+├── app/
+│   ├── (auth)/             # Next.js 16 Auth patterns
+│   ├── (dashboard)/        # Main Nexora Experience
+│   │   ├── chat/           # Multi-model chat interface
+│   │   ├── search/         # Agentic research results (Perplexity-style)
+│   │   ├── workspace/      # AI Canvas (Docs, Code, Artifacts)
+│   │   └── discover/       # Agent Marketplace
+│   ├── api/
+│   │   ├── agent/          # LangGraph execution endpoints
+│   │   └── mcp/            # Model Context Protocol tools
+│   ├── layout.tsx          # Root layout with View Transitions
+│   └── proxy.ts            # Next 16 Edge Traffic Controller
+├── components/
+│   ├── ai/                 # Streaming text, Citations, Source cards
+│   ├── canvas/             # Artifact editor & preview components
+│   ├── chat/               # Model selectors, Prompt inputs
+│   └── layout/             # Command-K, Sidebar, Glassmorphism wrappers
+├── lib/
+│   ├── ai/                 # OpenRouter & SDK providers
+│   ├── graph/              # LangGraph nodes and state definitions
+│   ├── db/                 # Supabase / pgvector clients
+│   └── utils/              # Token counters & formatting
+├── agents/                 # Logic for specialized AI agents
+│   ├── researcher.ts       # Deep search & fact-checking
+│   ├── analyst.ts          # Data & CSV processing
+│   └── coder.ts            # E2B Sandbox execution
+
+Markdown
+# 🌌 NEXORA - Cursor AI Rules (2026 Stable Edition)
+# The Agentic Search & Action Platform
+# Stack: Next.js 16.2, TypeScript 5.5+, Supabase, OpenRouter, Vercel AI SDK v4, LangGraph
+
+## 🧠 PROJECT CONTEXT
+Nexora is a **Next-Era Agentic Engine** designed to outperform general search engines (Perplexity) and simple aggregators (AI Fiesta).
+- **Search-to-Action:** Don't just find info; provide "Execution Blocks" (e.g., "Export to Sheets", "Draft Email", "Analyze Code").
+- **Agentic Loops:** Use LangGraph for multi-step reasoning, fact-checking, and self-correction.
+- **Unified Interface:** 10+ models (via OpenRouter) with side-by-side comparison and a shared "Canvas" workspace.
+
+## 🛠️ TECH STACK (2026 STANDARDS)
+- **Framework:** Next.js 16.2+ (Stable) with **React Compiler** and **Turbopack**.
+- **Caching:** Stable `"use cache"` directive (Fine-grained AI result persistence).
+- **Orchestration:** **LangGraph.js** (Stateful Agent Workflows).
+- **Search/Data:** **Tavily API** (Search) + **Firecrawl** (Clean Markdown scraping).
+- **AI Streaming:** Vercel AI SDK v4 (`streamText`, `streamObject`).
+- **Middleware:** `proxy.ts` (Next 16 pattern) for AI rate-limiting and request routing.
+
+## 📁 FOLDER STRUCTURE
+```text
+src/
+├── app/
+│   ├── (auth)/             # Next.js 16 Auth patterns
+│   ├── (dashboard)/        # Main Nexora Experience
+│   │   ├── chat/           # Multi-model chat interface
+│   │   ├── search/         # Agentic research results (Perplexity-style)
+│   │   ├── workspace/      # AI Canvas (Docs, Code, Artifacts)
+│   │   └── discover/       # Agent Marketplace
+│   ├── api/
+│   │   ├── agent/          # LangGraph execution endpoints
+│   │   └── mcp/            # Model Context Protocol tools
+│   ├── layout.tsx          # Root layout with View Transitions
+│   └── proxy.ts            # Next 16 Edge Traffic Controller
+├── components/
+│   ├── ai/                 # Streaming text, Citations, Source cards
+│   ├── canvas/             # Artifact editor & preview components
+│   ├── chat/               # Model selectors, Prompt inputs
+│   └── layout/             # Command-K, Sidebar, Glassmorphism wrappers
+├── lib/
+│   ├── ai/                 # OpenRouter & SDK providers
+│   ├── graph/              # LangGraph nodes and state definitions
+│   ├── db/                 # Supabase / pgvector clients
+│   └── utils/              # Token counters & formatting
+├── agents/                 # Logic for specialized AI agents
+│   ├── researcher.ts       # Deep search & fact-checking
+│   ├── analyst.ts          # Data & CSV processing
+│   └── coder.ts            # E2B Sandbox execution
+✅ CODING RULES
+Model Hierarchy: Route tasks intelligently. gpt-4o-mini for routing/summaries; claude-3.5-sonnet or o1 for reasoning.
+
+Next.js 16 Caching: Use "use cache" for RAG results to prevent redundant expensive API calls.
+
+Async Requirements: Always await params and searchParams in Page components.
+
+Agentic Status: Show granular "Thinking" states (e.g., "Reading Reddit threads...", "Verifying citations...").
+
+Citations: Every claim must link to a Source object with metadata (title, URL, favicon).
+
+Strict Types: No any. Use Zod for all AI output parsing to ensure UI stability.
+
+Action Blocks: Every research result should end with at least two "Next Step" buttons.
+
+View Transitions: Use React 19's startTransition for smooth UI updates between agents.
+
+🚫 NEVER DO THIS
+Never use legacy middleware.ts for AI logic (use proxy.ts).
+
+Never use unstable_cache (Next 16 has stabilized caching).
+
+Never allow AI to output raw HTML (Use Markdown + custom components).
+
+Never hardcode model strings; use the central /lib/ai/models.ts config.
+
+Never block the UI during long-running agent tasks; use Server Sent Events (SSE).
+
+🎨 UI/DESIGN (THE NEXORA AESTHETIC)
+Primary Color: Violet (#7C3AED) | Accent: Cyan (#06B6D4).
+
+Themes: Dark Mode Default (#0A0A0A).
+
+Glassmorphism: Use backdrop-blur-md and bg-white/5 for sidebars and input fields.
+
+Layout: Side-by-side "Canvas" view for generated docs (Artifacts).
+
+Typography: Inter (San-serif) for UI, JetBrains Mono for Code/Agent logs.
+
+🔌 COMPONENT PATTERN (NEXT 16 + AI)
+TypeScript
+// src/components/ai/ResearchResult.tsx
+import { Suspense } from 'react';
+
+interface ResearchProps {
+  query: string;
+}
+
+export async function ResearchResult({ query }: ResearchProps) {
+  "use cache" // Next.js 16 caching
+  const data = await runAgenticSearch(query);
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-xl font-semibold">{data.title}</h2>
+      <div className="prose dark:prose-invert">
+        {data.content}
+      </div>
+      <SourceList sources={data.sources} />
+      <ActionFooter actions={data.suggestedActions} />
+    </section>
+  );
+}
+🔗 API ROUTE PATTERN
+TypeScript
+// src/app/api/chat/route.ts
+import { streamText } from 'ai';
+import { openrouter } from '@/lib/ai/providers';
+
+export async function POST(req: Request) {
+  const { messages, model } = await req.json();
+
+  // 1. Validation & Rate Limiting (via proxy.ts)
+  // 2. State Management (LangGraph)
+
+  return streamText({
+    model: openrouter(model),
+    messages,
+    temperature: 0.7,
+  }).toDataStreamResponse();
+}
+
+This structure ensures your Cursor AI stays within the 2026 "Agentic Engine" boundaries. Would you like me to create the `proxy.ts` architecture to handle your multi-model routing and rate limiting?
+````
