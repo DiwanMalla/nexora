@@ -123,10 +123,12 @@ flowchart LR
 
 | Doc | Description |
 |-----|-------------|
+| **CHANGELOG.md** | **What we've done** — auth, landing, workspace, routes, fixes (clean summary) |
 | **Planning.md** | Vision, P0–P3, security, monetization, competitors |
 | **Architecture.md** | System overview, data flows, folder structure |
 | **ENV.md** | Environment variables |
 | **MILESTONES.md** | Build phases M1–M5 |
+| **DEPENDENCIES.md** | npm packages and agent skills (skills.sh) |
 | **DATABASE.md** | Schema (Supabase, RLS) |
 | **API.md** | Endpoint documentation |
 | **AGENTS.md** | Agent registry (Researcher, Analyst, Coder) |

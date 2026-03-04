@@ -29,11 +29,14 @@ All keys must stay **server-side only** (see [Planning — Privacy & Security](P
 
 ---
 
-## Auth (if using Supabase Auth)
+## Auth (Clerk)
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key (client-safe for Auth) |
+| Variable | Description | When |
+|----------|-------------|------|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (client-safe) | Production; optional in dev (keyless mode) |
+| `CLERK_SECRET_KEY` | Clerk secret key (server-only, never expose) | Production; optional in dev (keyless mode) |
+
+Keyless mode: if these are unset, Clerk auto-generates dev keys so you can run the app immediately. For production, get keys from [dashboard.clerk.com](https://dashboard.clerk.com).
 
 ---
 

@@ -137,6 +137,7 @@
       <a href="#agents" class="nav-link">Agents</a>
       <a href="#ui-components" class="nav-link">UI Components</a>
       <a href="#competitors" class="nav-link">Competitors</a>
+      <a href="#changelog" class="nav-link">Changelog</a>
     </nav>
     <main>
       <header class="hero">
@@ -304,8 +305,23 @@
         <p><a href="COMPETITORS.md">Full COMPETITORS.md</a></p>
       </section>
 
+      <section id="changelog" class="doc">
+        <h2>Changelog</h2>
+        <p>Summary of what has been implemented, in a single place.</p>
+        <h3>Current status</h3>
+        <ul>
+          <li><strong>Auth:</strong> Clerk integrated; sign-in/sign-up; protected routes; redirect to workspace when logged in.</li>
+          <li><strong>Landing:</strong> Full marketing homepage (hero, features, agents, CTA, FAQ, footer); public routes for Features, Pricing, Blog, Privacy, Terms.</li>
+          <li><strong>Workspace:</strong> Logged-in dashboard with sidebar, command bar, agent tiles; placeholder Inbox/Drive.</li>
+          <li><strong>Docs:</strong> This folder + single-page browser (<code>docs.html</code>).</li>
+        </ul>
+        <h3>Categories</h3>
+        <p>Authentication (Clerk, middleware, redirect) · Landing &amp; marketing (hero, features, agents, CTA, FAQ, footer, nav) · Workspace dashboard (layout, command bar, tiles) · Documentation &amp; routes (public pages, CHANGELOG) · Bug fixes (Framer Motion types, middleware).</p>
+        <p><a href="CHANGELOG.md">Full CHANGELOG.md</a></p>
+      </section>
+
       <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.9rem;">
-        Nexora docs — All files in <code>docs/</code>. Readme · Planning · Architecture · ENV · Milestones · Database · API · Agents · UI Components · Competitors. MIT.
+        Nexora docs — All files in <code>docs/</code>. Readme · Planning · Architecture · ENV · Milestones · Database · API · Agents · UI Components · Competitors · Changelog. MIT.
       </footer>
     </main>
   </div>

@@ -7,7 +7,7 @@ Phased build plan aligned with [Planning](Planning.md). Ship often; no scope cre
 ## M1 — Foundation (Weeks 1–2)
 
 - [ ] Next.js 16 app with Turbopack, TypeScript, Tailwind
-- [ ] Supabase project + Auth (Google + email), RLS baseline
+- [ ] Supabase project + RLS baseline; Clerk for Auth (Google + email)
 - [ ] `proxy.ts` skeleton (rate limit + route to API)
 - [ ] `/api/chat` with OpenRouter + Vercel AI SDK v4 streaming
 - [ ] Basic chat UI + model selector (3–5 models)

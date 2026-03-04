@@ -39,7 +39,7 @@ Security and privacy are **non-negotiable** from day one. Nexora handles queries
 
 ### P0 Security & Privacy Requirements (MVP)
 
-- [ ] **Authentication** — Secure auth (e.g. Clerk/Supabase Auth) with Google + email; no plaintext passwords; session handling and logout.
+- [ ] **Authentication** — Clerk with Google + email; no plaintext passwords; session handling and logout.
 - [ ] **Secrets** — All API keys (OpenRouter, Tavily, Firecrawl, Stripe) **server-side only**; never exposed to client or logs.
 - [ ] **Rate limiting & abuse** — `proxy.ts` (or equivalent) for AI/API rate limits and basic abuse protection.
 - [ ] **Data in transit** — HTTPS only; no mixed content; secure cookies (e.g. `Secure`, `HttpOnly`, `SameSite`).

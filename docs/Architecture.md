@@ -23,7 +23,8 @@ Technical reference for the Nexora stack. Aligns with [.cursorrule](../.cursorru
 └──────────────────────────────────────────────────────────────────┘
        ↓
 [OpenRouter]  →  GPT-4o / Claude / o1 / Gemini / DeepSeek / ...
-[Supabase]    →  PostgreSQL + pgvector + Auth + Storage (RLS)
+[Supabase]    →  PostgreSQL + pgvector + Storage (RLS)
+[Clerk]       →  Auth (Google + email)
 [Stripe]      →  Payments + Webhooks
 ```
 
