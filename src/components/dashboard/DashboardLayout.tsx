@@ -16,6 +16,7 @@ import {
   Bell,
   Zap,
   ChevronRight,
+  ArrowRight,
   Hexagon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,16 +46,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         aria-label="Workspace navigation"
       >
         {/* Sidebar header */}
-        <div className="flex h-14 items-center gap-2 border-b border-white/[0.06] px-3">
+        <div className="flex h-16 items-center gap-3 border-b border-white/[0.04] bg-white/[0.01] px-4">
           <Link
             href="/workspace"
-            className="flex items-center gap-2.5 overflow-hidden"
+            className="flex items-center gap-3 overflow-hidden"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet to-cyan/70">
-              <Hexagon className="h-4 w-4 text-white" aria-hidden />
-            </span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet to-cyan/80 shadow-[0_4px_12px_rgba(124,58,237,0.3)]">
+              <Hexagon className="h-4.5 w-4.5 text-white filter drop-shadow-sm" aria-hidden />
+            </div>
             {sidebarOpen && (
-              <span className="font-display text-base font-bold tracking-tight text-white">
+              <span className="font-display text-lg font-bold tracking-tight text-white/90">
                 Nexora
               </span>
             )}
@@ -63,7 +64,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={cn(
-              "ml-auto rounded-md p-1.5 text-[var(--text-dim)] transition hover:bg-white/5 hover:text-white",
+              "ml-auto rounded-lg p-1.5 text-[var(--text-dim)] transition-all hover:bg-white/5 hover:text-white active:scale-90",
               focusRing,
             )}
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
@@ -77,27 +78,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* New button */}
-        <div className="px-3 pt-3">
+        <div className="px-3.5 pt-4">
           <Link
             href="/workspace?new=1"
             className={cn(
-              "flex items-center gap-2 rounded-xl px-3 py-2.5 text-base font-medium transition",
-              "bg-gradient-to-r from-violet/20 to-cyan/10 text-white",
-              "border border-violet/20 hover:border-violet/40 hover:from-violet/30 hover:to-cyan/15",
+              "flex items-center gap-2.5 rounded-xl px-3 py-3 text-[14px] font-bold transition-all duration-300",
+              "bg-gradient-to-b from-violet-500 to-violet-600 text-white",
+              "border-t border-white/20 shadow-[0_4px_12px_rgba(124,58,237,0.3),inset_0_1px_rgba(255,255,255,0.1)] hover:shadow-[0_6px_16px_rgba(124,58,237,0.4)] hover:scale-[1.02] active:scale-95",
               focusRing,
               !sidebarOpen && "justify-center px-0",
             )}
           >
-            <Plus className="h-4 w-4 shrink-0" />
-            {sidebarOpen && <span>New conversation</span>}
+            <Plus className="h-4 w-4 shrink-0 stroke-[2.5px]" />
+            {sidebarOpen && <span>New task</span>}
           </Link>
         </div>
 
         {/* Nav links */}
-        <nav className="mt-4 flex flex-1 flex-col gap-0.5 px-2">
+        <nav className="mt-5 flex flex-1 flex-col gap-1 px-2.5">
           {sidebarOpen && (
-            <span className="mb-1.5 px-2 text-[12px] font-semibold uppercase tracking-[0.15em] text-[var(--text-dim)]">
-              Workspace
+            <span className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-dim)] opacity-60">
+              Platform
             </span>
           )}
           {mainNav.map(({ href, label, icon: Icon }) => {
@@ -107,9 +108,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={cn(
-                  "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-base font-medium transition",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-white/[0.08] text-white"
+                    ? "bg-white/[0.06] text-white shadow-[0_1px_3px_rgba(0,0,0,0.2),inset_0_1px_rgba(255,255,255,0.05)]"
                     : "text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
                   focusRing,
                   !sidebarOpen && "justify-center px-0",
@@ -117,11 +118,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 aria-current={isActive ? "page" : undefined}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-violet to-cyan" />
+                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-violet to-cyan shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
                 )}
                 <Icon
                   className={cn(
-                    "h-[18px] w-[18px] shrink-0 transition",
+                    "h-4.5 w-4.5 shrink-0 transition-colors",
                     isActive ? "text-violet-light" : "group-hover:text-white",
                   )}
                   aria-hidden
@@ -134,23 +135,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Upgrade card (sidebar open only) */}
         {sidebarOpen && (
-          <div className="mx-3 mb-3 rounded-xl border border-violet/15 bg-gradient-to-br from-violet/[0.08] to-transparent p-3.5">
-            <div className="flex items-center gap-2 text-base font-semibold text-white">
-              <Zap className="h-4 w-4 text-violet-light" />
-              Upgrade to Pro
+          <div className="mx-3.5 mb-4 rounded-xl border border-white/5 bg-[#12121A] p-4 shadow-xl">
+            <div className="flex items-center gap-2 text-sm font-bold text-white">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet/20 border border-violet/30">
+                <Zap className="h-3 w-3 text-violet-light fill-violet-light" />
+              </div>
+              Nexora Pro
             </div>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--text-dim)]">
-              Unlimited messages, all models, all agents.
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-dim)]">
+              Access GPT-4o, Claude 3.5, and dedicated agents.
             </p>
             <Link
               href="/pricing"
               className={cn(
-                "mt-2.5 flex items-center gap-1 text-sm font-semibold text-violet-light transition hover:text-violet",
+                "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/5 bg-white/5 py-2 text-[12px] font-bold text-white transition-all hover:bg-white/10",
                 focusRing,
               )}
             >
-              Learn more
-              <ChevronRight className="h-3 w-3" />
+              Upgrade
+              <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
         )}
@@ -158,20 +161,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* User */}
         <div
           className={cn(
-            "flex items-center gap-2.5 border-t border-white/[0.06] px-3 py-3",
+            "flex items-center gap-3 border-t border-white/[0.04] bg-white/[0.01] px-4 py-4",
             !sidebarOpen && "justify-center",
           )}
         >
-          <UserButton
-            afterSignOutUrl="/"
-            appearance={{
-              variables: { colorPrimary: "#7C3AED" },
-            }}
-          />
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/10">
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{
+                variables: { colorPrimary: "#7C3AED" },
+                elements: { avatarBox: "h-8 w-8" }
+              }}
+            />
+          </div>
           {sidebarOpen && (
-            <span className="text-sm font-medium text-[var(--text-muted)]">
-              Account
-            </span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-white/80">My Workspace</span>
+              <span className="text-[10px] font-semibold text-[var(--text-dim)]">Personal Account</span>
+            </div>
           )}
         </div>
       </aside>

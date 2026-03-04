@@ -113,8 +113,8 @@ export function FeaturesSection() {
                       step.status === "active"
                         ? "border-violet/30 bg-violet/[0.06]"
                         : step.status === "done"
-                        ? "border-white/[0.08] bg-white/[0.02]"
-                        : "border-white/[0.04] bg-white/[0.01] opacity-50"
+                          ? "border-white/[0.08] bg-white/[0.02]"
+                          : "border-white/[0.04] bg-white/[0.01] opacity-50"
                     }`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={
@@ -129,20 +129,20 @@ export function FeaturesSection() {
                         step.status === "active"
                           ? "bg-violet/20 text-violet-light"
                           : step.status === "done"
-                          ? "bg-cyan/10 text-cyan"
-                          : "bg-white/[0.04] text-white/20"
+                            ? "bg-cyan/10 text-cyan"
+                            : "bg-white/[0.04] text-white/20"
                       }`}
                     >
                       <step.icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1">
                       <span
-                        className={`text-sm font-medium ${
+                        className={`text-base font-medium ${
                           step.status === "active"
                             ? "text-white/90"
                             : step.status === "done"
-                            ? "text-white/60"
-                            : "text-white/25"
+                              ? "text-white/60"
+                              : "text-white/25"
                         }`}
                       >
                         {step.label}
@@ -162,7 +162,10 @@ export function FeaturesSection() {
               </div>
 
               {/* Connection lines */}
-              <div className="absolute left-[29px] top-[52px] w-px" style={{ height: "calc(100% - 70px)" }}>
+              <div
+                className="absolute left-[29px] top-[52px] w-px"
+                style={{ height: "calc(100% - 70px)" }}
+              >
                 <div className="h-full w-full bg-gradient-to-b from-cyan/20 via-violet/15 to-transparent" />
               </div>
             </motion.div>
@@ -174,15 +177,12 @@ export function FeaturesSection() {
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
             >
-              <motion.span
-                variants={fadeUp}
-                className="pill-badge mb-6"
-              >
+              <motion.span variants={fadeUp} className="pill-badge mb-6">
                 How it works
               </motion.span>
               <motion.h2
                 variants={fadeUp}
-                className="font-display text-4xl font-bold leading-tight sm:text-5xl"
+                className="font-display text-5xl font-bold leading-tight sm:text-6xl"
               >
                 <span className="text-white/90">From question</span>
                 <br />
@@ -193,23 +193,27 @@ export function FeaturesSection() {
               </motion.h2>
               <motion.p
                 variants={fadeUp}
-                className="mt-6 max-w-md text-lg leading-relaxed text-[var(--text-muted)]"
+                className="mt-6 max-w-md text-xl leading-relaxed text-[var(--text-muted)]"
               >
-                Nexora&apos;s agentic pipeline routes your query through the right 
-                agents, verifies every claim with citations, then surfaces 
-                execution blocks so you can act on the results — not just read them.
+                Nexora&apos;s agentic pipeline routes your query through the
+                right agents, verifies every claim with citations, then surfaces
+                execution blocks so you can act on the results — not just read
+                them.
               </motion.p>
-              <motion.div variants={fadeUp} className="mt-6 flex flex-wrap gap-3">
-                <span className="rounded-full bg-cyan/10 px-3 py-1 text-xs font-medium text-cyan/80">
+              <motion.div
+                variants={fadeUp}
+                className="mt-6 flex flex-wrap gap-3"
+              >
+                <span className="rounded-full bg-cyan/10 px-3 py-1 text-sm font-medium text-cyan/80">
                   Tavily Search
                 </span>
-                <span className="rounded-full bg-violet/10 px-3 py-1 text-xs font-medium text-violet-light/80">
+                <span className="rounded-full bg-violet/10 px-3 py-1 text-sm font-medium text-violet-light/80">
                   LangGraph
                 </span>
-                <span className="rounded-full bg-cyan/10 px-3 py-1 text-xs font-medium text-cyan/80">
+                <span className="rounded-full bg-cyan/10 px-3 py-1 text-sm font-medium text-cyan/80">
                   Firecrawl
                 </span>
-                <span className="rounded-full bg-violet/10 px-3 py-1 text-xs font-medium text-violet-light/80">
+                <span className="rounded-full bg-violet/10 px-3 py-1 text-sm font-medium text-violet-light/80">
                   OpenRouter
                 </span>
               </motion.div>
@@ -240,23 +244,21 @@ export function FeaturesSection() {
               </motion.span>
               <motion.h2
                 variants={fadeUp}
-                className="font-display text-4xl font-bold leading-tight sm:text-5xl"
+                className="font-display text-5xl font-bold leading-tight sm:text-6xl"
               >
                 <span className="text-white/90">Know </span>
                 <span className="bg-gradient-to-r from-cyan to-violet-light bg-clip-text text-transparent italic">
                   why
                 </span>
                 <br />
-                <span className="text-white/90">
-                  your model was chosen
-                </span>
+                <span className="text-white/90">your model was chosen</span>
               </motion.h2>
               <motion.p
                 variants={fadeUp}
-                className="mt-6 max-w-md text-lg leading-relaxed text-[var(--text-muted)]"
+                className="mt-6 max-w-md text-xl leading-relaxed text-[var(--text-muted)]"
               >
-                Unlike other platforms that hide routing decisions, Nexora shows 
-                you exactly why a model was selected — cost, capability, and 
+                Unlike other platforms that hide routing decisions, Nexora shows
+                you exactly why a model was selected — cost, capability, and
                 latency scores for full transparency.
               </motion.p>
             </motion.div>
@@ -308,30 +310,30 @@ export function FeaturesSection() {
                         }`}
                       />
                       <div>
-                        <div className="text-sm font-semibold text-white/80">
+                        <div className="text-base font-semibold text-white/80">
                           {model.name}
                         </div>
-                        <div className="text-xs text-white/30">
+                        <div className="text-sm text-white/30">
                           {model.provider}
                         </div>
                       </div>
                     </div>
                     {model.selected && (
-                      <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-[0.65rem] font-semibold text-green-400/80">
+                      <span className="rounded-full bg-green-500/15 px-2.5 py-0.5 text-[0.75rem] font-semibold text-green-400/80">
                         SELECTED
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 text-xs text-white/40">{model.reason}</p>
+                  <p className="mt-2 text-sm text-white/40">{model.reason}</p>
                   {/* Score bars */}
                   <div className="mt-3 grid grid-cols-3 gap-3">
                     {(["capability", "cost", "speed"] as const).map((key) => (
                       <div key={key}>
                         <div className="mb-1 flex items-center justify-between">
-                          <span className="text-[0.6rem] font-semibold uppercase tracking-wider text-white/25">
+                          <span className="text-[0.7rem] font-semibold uppercase tracking-wider text-white/25">
                             {key}
                           </span>
-                          <span className="text-[0.6rem] font-bold text-white/40">
+                          <span className="text-[0.7rem] font-bold text-white/40">
                             {model.scores[key]}
                           </span>
                         </div>
@@ -379,7 +381,7 @@ export function FeaturesSection() {
             transition={{ duration: 0.6 }}
           >
             <span className="pill-badge mb-4">Platform</span>
-            <h2 className="mt-4 font-display text-3xl font-bold text-white/90 sm:text-4xl">
+            <h2 className="mt-4 font-display text-4xl font-bold text-white/90 sm:text-5xl">
               Everything you need,
               <br />
               nothing you don&apos;t
@@ -411,10 +413,10 @@ export function FeaturesSection() {
                 >
                   <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mb-2 font-display text-sm font-semibold text-white/85">
+                <h3 className="mb-2 font-display text-base font-semibold text-white/85">
                   {f.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+                <p className="text-base leading-relaxed text-[var(--text-muted)]">
                   {f.desc}
                 </p>
               </motion.div>

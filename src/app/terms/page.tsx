@@ -7,7 +7,7 @@ export default function TermsPage() {
       <Nav />
       <main className="min-h-screen px-4 pt-24 pb-16">
         <div className="mx-auto max-w-3xl">
-          <h1 className="font-display text-3xl font-bold text-white">
+          <h1 className="font-display text-4xl font-bold text-white">
             Terms of Service
           </h1>
           <p className="mt-4 text-[var(--text-muted)]">

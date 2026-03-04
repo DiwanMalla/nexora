@@ -40,7 +40,7 @@ export function UsageStats() {
     <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-card)] p-4">
       <div className="mb-3 flex items-center gap-2">
         <TrendingUp className="h-4 w-4 text-[var(--text-dim)]" />
-        <h3 className="text-sm font-semibold text-white">Usage</h3>
+        <h3 className="text-base font-semibold text-white">Usage</h3>
       </div>
       <div className="grid grid-cols-3 gap-3">
         {stats.map(({ label, value, subtext, icon: Icon, color }) => (
@@ -53,11 +53,13 @@ export function UsageStats() {
             >
               <Icon className="h-4 w-4" />
             </div>
-            <p className="font-display text-xl font-bold text-white">{value}</p>
-            <p className="mt-0.5 text-[10px] font-medium text-[var(--text-dim)]">
+            <p className="font-display text-2xl font-bold text-white">
+              {value}
+            </p>
+            <p className="mt-0.5 text-[12px] font-medium text-[var(--text-dim)]">
               {subtext}
             </p>
-            <p className="text-[10px] text-[var(--text-dim)]">{label}</p>
+            <p className="text-[12px] text-[var(--text-dim)]">{label}</p>
           </div>
         ))}
       </div>

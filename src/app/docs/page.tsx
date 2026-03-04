@@ -21,20 +21,26 @@ export default function DocsPage() {
       <Nav />
       <main className="min-h-screen px-4 pt-28 pb-16">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-3xl font-bold text-white">Documentation</h1>
+          <h1 className="text-4xl font-bold text-white">Documentation</h1>
           <p className="mt-2 text-gray-400">
-            All docs live in the <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">docs/</code> folder in the repo.
+            All docs live in the{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-base">
+              docs/
+            </code>{" "}
+            folder in the repo.
           </p>
           <GlassPanel className="mt-8 space-y-2 p-6">
-            <p className="text-sm text-gray-400">
-              Open <strong className="text-white">docs/docs.html</strong> in your browser to browse everything in one page. Or open individual files:
+            <p className="text-base text-gray-400">
+              Open <strong className="text-white">docs/docs.html</strong> in
+              your browser to browse everything in one page. Or open individual
+              files:
             </p>
             <ul className="mt-4 space-y-2">
               {docLinks.map(({ name, path }) => (
                 <li key={path}>
                   <span className="font-medium text-white">{name}</span>
                   <span className="mx-2 text-gray-500">·</span>
-                  <code className="text-sm text-cyan">{path}</code>
+                  <code className="text-base text-cyan">{path}</code>
                 </li>
               ))}
             </ul>

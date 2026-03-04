@@ -29,6 +29,7 @@ yarn-error.log*
 *.swp
 .DS_Store
 Thumbs.db
+.history/
 
 # Vercel
 .vercel

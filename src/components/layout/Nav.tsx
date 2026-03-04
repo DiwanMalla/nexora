@@ -34,7 +34,11 @@ export function Nav() {
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5" aria-label="Nexora Home">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5"
+          aria-label="Nexora Home"
+        >
           {/* Nexora geometric logo — unique, not an eye like kumari */}
           <svg
             width="28"
@@ -57,14 +61,52 @@ export function Nav() {
               fill="none"
             />
             {/* Inner node */}
-            <circle cx="14" cy="14" r="3" fill="url(#nexora-grad)" opacity="0.8" />
+            <circle
+              cx="14"
+              cy="14"
+              r="3"
+              fill="url(#nexora-grad)"
+              opacity="0.8"
+            />
             {/* Connection lines */}
-            <line x1="14" y1="2" x2="14" y2="11" stroke="url(#nexora-grad)" strokeWidth="0.8" opacity="0.4" />
-            <line x1="14" y1="17" x2="14" y2="26" stroke="url(#nexora-grad)" strokeWidth="0.8" opacity="0.4" />
-            <line x1="2.5" y1="8.5" x2="11" y2="14" stroke="url(#nexora-grad)" strokeWidth="0.8" opacity="0.4" />
-            <line x1="17" y1="14" x2="25.5" y2="8.5" stroke="url(#nexora-grad)" strokeWidth="0.8" opacity="0.4" />
+            <line
+              x1="14"
+              y1="2"
+              x2="14"
+              y2="11"
+              stroke="url(#nexora-grad)"
+              strokeWidth="0.8"
+              opacity="0.4"
+            />
+            <line
+              x1="14"
+              y1="17"
+              x2="14"
+              y2="26"
+              stroke="url(#nexora-grad)"
+              strokeWidth="0.8"
+              opacity="0.4"
+            />
+            <line
+              x1="2.5"
+              y1="8.5"
+              x2="11"
+              y2="14"
+              stroke="url(#nexora-grad)"
+              strokeWidth="0.8"
+              opacity="0.4"
+            />
+            <line
+              x1="17"
+              y1="14"
+              x2="25.5"
+              y2="8.5"
+              stroke="url(#nexora-grad)"
+              strokeWidth="0.8"
+              opacity="0.4"
+            />
           </svg>
-          <span className="font-display text-[1.05rem] font-bold tracking-tight text-white/90">
+          <span className="font-display text-[1.15rem] font-bold tracking-tight text-white/90">
             Nexora
           </span>
         </Link>
@@ -75,7 +117,7 @@ export function Nav() {
             <Link
               key={link.href}
               href={link.href}
-              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-3.5 py-2 text-base font-medium transition-colors ${
                 pathname === link.href
                   ? "text-white"
                   : "text-white/40 hover:text-white/70"
@@ -91,13 +133,13 @@ export function Nav() {
           <SignedOut>
             <Link
               href="/sign-in"
-              className="hidden text-sm font-medium text-white/40 transition hover:text-white/70 sm:block"
+              className="hidden text-base font-medium text-white/40 transition hover:text-white/70 sm:block"
             >
               Sign in
             </Link>
             <Link
               href="/sign-up"
-              className="group inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition-all hover:bg-white/90"
+              className="group inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-base font-semibold text-black transition-all hover:bg-white/90"
             >
               Get Started
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -106,7 +148,7 @@ export function Nav() {
           <SignedIn>
             <Link
               href="/workspace"
-              className="rounded-lg bg-white/[0.06] px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+              className="rounded-lg bg-white/[0.06] px-4 py-2 text-base font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
             >
               Workspace
             </Link>
@@ -125,7 +167,11 @@ export function Nav() {
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </button>
         </div>
       </nav>
@@ -138,7 +184,7 @@ export function Nav() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-white/60 transition hover:bg-white/[0.04] hover:text-white"
+                className="block rounded-lg px-3 py-2.5 text-base font-medium text-white/60 transition hover:bg-white/[0.04] hover:text-white"
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label}

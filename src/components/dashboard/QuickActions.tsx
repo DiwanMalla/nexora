@@ -2,73 +2,128 @@
 
 import Link from "next/link";
 import {
-  MessageCircle,
+  Bot,
   Search,
-  Upload,
+  Code2,
   FileText,
+  Image,
+  Video,
+  Music,
+  BarChart3,
+  Mail,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
 
 type QuickAction = {
   href: string;
   label: string;
   icon: LucideIcon;
   color: string;
+  badge?: string;
 };
 
 const actions: QuickAction[] = [
   {
-    href: "/chat",
-    label: "New chat",
-    icon: MessageCircle,
-    color: "text-violet-light bg-violet/15 group-hover:bg-violet/25",
-  },
-  {
-    href: "/search",
-    label: "Research",
+    href: "/search?agent=researcher",
+    label: "AI Search",
     icon: Search,
-    color: "text-cyan-light bg-cyan/15 group-hover:bg-cyan/25",
+    color: "bg-violet/15 text-violet-light border-violet/25",
   },
   {
-    href: "/drive?upload=1",
-    label: "Upload",
-    icon: Upload,
-    color: "text-emerald-400 bg-emerald-500/15 group-hover:bg-emerald-500/25",
+    href: "/chat",
+    label: "AI Chat",
+    icon: Bot,
+    color: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+    badge: "Unlimited",
+  },
+  {
+    href: "/search?agent=coder",
+    label: "AI Developer",
+    icon: Code2,
+    color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+  },
+  {
+    href: "/search?agent=analyst",
+    label: "AI Analyst",
+    icon: BarChart3,
+    color: "bg-cyan/15 text-cyan-light border-cyan/25",
   },
   {
     href: "/search?agent=docs",
-    label: "Write doc",
+    label: "AI Docs",
     icon: FileText,
-    color: "text-amber-400 bg-amber-500/15 group-hover:bg-amber-500/25",
+    color: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+  },
+  {
+    href: "/image",
+    label: "AI Image",
+    icon: Image,
+    color: "bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/25",
+    badge: "New",
+  },
+  {
+    href: "/video",
+    label: "AI Video",
+    icon: Video,
+    color: "bg-rose-500/15 text-rose-400 border-rose-500/25",
+  },
+  {
+    href: "/music",
+    label: "AI Music",
+    icon: Music,
+    color: "bg-orange-500/15 text-orange-400 border-orange-500/25",
+  },
+  {
+    href: "/email",
+    label: "AI Email",
+    icon: Mail,
+    color: "bg-sky-500/15 text-sky-400 border-sky-500/25",
+  },
+  {
+    href: "/discover",
+    label: "All Agents",
+    icon: Sparkles,
+    color: "bg-white/[0.06] text-white/60 border-white/10",
   },
 ];
 
 export function QuickActions() {
   return (
-    <div className="flex items-center gap-2">
-      {actions.map(({ href, label, icon: Icon, color }) => (
+    <div className="flex flex-wrap items-start justify-center gap-x-8 gap-y-6 sm:gap-x-10">
+      {actions.map(({ href, label, icon: Icon, color, badge }) => (
         <Link
           key={href}
           href={href}
           className={cn(
-            "group flex items-center gap-2 rounded-xl border border-white/[0.06] bg-[var(--bg-card)] px-3.5 py-2.5 transition-all duration-200",
-            "hover:border-white/[0.12] hover:bg-[var(--bg-card-hover)] hover:shadow-lg hover:shadow-black/20",
+            "group relative flex w-[72px] flex-col items-center gap-2.5 transition-all duration-300",
             focusRing,
           )}
         >
-          <span
+          {/* Badge */}
+          {badge && (
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg">
+              {badge}
+            </span>
+          )}
+
+          {/* Circular icon */}
+          <div
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-lg transition",
+              "flex h-14 w-14 items-center justify-center rounded-full border transition-all duration-300",
+              "group-hover:scale-110 group-hover:shadow-lg",
               color,
             )}
           >
-            <Icon className="h-3.5 w-3.5" aria-hidden />
-          </span>
-          <span className="text-xs font-medium text-[var(--text-muted)] transition group-hover:text-white">
+            <Icon className="h-6 w-6 stroke-[1.5px]" />
+          </div>
+
+          {/* Label */}
+          <span className="text-center text-[11px] font-semibold leading-tight text-slate-500 transition-colors group-hover:text-white">
             {label}
           </span>
         </Link>

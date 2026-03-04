@@ -58,7 +58,13 @@ export function Footer() {
             <div className="mb-4 flex items-center gap-2.5">
               <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
                 <defs>
-                  <linearGradient id="footer-grad" x1="0" y1="0" x2="28" y2="28">
+                  <linearGradient
+                    id="footer-grad"
+                    x1="0"
+                    y1="0"
+                    x2="28"
+                    y2="28"
+                  >
                     <stop offset="0%" stopColor="#7C3AED" />
                     <stop offset="100%" stopColor="#06B6D4" />
                   </linearGradient>
@@ -69,15 +75,21 @@ export function Footer() {
                   strokeWidth="1.5"
                   fill="none"
                 />
-                <circle cx="14" cy="14" r="3" fill="url(#footer-grad)" opacity="0.8" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3"
+                  fill="url(#footer-grad)"
+                  opacity="0.8"
+                />
               </svg>
-              <span className="font-display text-sm font-bold text-white/80">
+              <span className="font-display text-base font-bold text-white/80">
                 Nexora
               </span>
             </div>
-            <p className="mb-6 max-w-xs text-sm leading-relaxed text-[var(--text-muted)]">
-              One platform. Every AI. Search → Action. 
-              Multi-agent reasoning with execution blocks.
+            <p className="mb-6 max-w-xs text-base leading-relaxed text-[var(--text-muted)]">
+              One platform. Every AI. Search → Action. Multi-agent reasoning
+              with execution blocks.
             </p>
             {/* Social icons */}
             <div className="flex gap-3">
@@ -105,7 +117,7 @@ export function Footer() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
             >
-              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/25">
+              <h4 className="mb-4 text-sm font-bold uppercase tracking-widest text-white/25">
                 {title}
               </h4>
               <ul className="space-y-2.5">
@@ -113,7 +125,7 @@ export function Footer() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-sm text-white/40 transition hover:text-white/70"
+                      className="text-base text-white/40 transition hover:text-white/70"
                     >
                       {link.label}
                     </Link>
@@ -137,14 +149,20 @@ export function Footer() {
         {/* ── Bottom bar ── */}
         <div className="border-t border-white/[0.06] py-6">
           <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-xs text-white/20">
+            <p className="text-sm text-white/20">
               © {new Date().getFullYear()} Nexora. All rights reserved.
             </p>
             <div className="flex gap-6">
-              <Link href="/privacy" className="text-xs text-white/20 transition hover:text-white/40">
+              <Link
+                href="/privacy"
+                className="text-sm text-white/20 transition hover:text-white/40"
+              >
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="text-xs text-white/20 transition hover:text-white/40">
+              <Link
+                href="/terms"
+                className="text-sm text-white/20 transition hover:text-white/40"
+              >
                 Terms of Service
               </Link>
             </div>

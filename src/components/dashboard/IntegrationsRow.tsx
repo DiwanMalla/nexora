@@ -28,41 +28,31 @@ const integrations: Integration[] = [
 
 export function IntegrationsRow() {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-card)] p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-white">Integrations</h3>
-        <span className="text-[13px] text-[var(--text-dim)]">
-          Connect your tools
+    <div className="rounded-2xl border border-white/10 bg-[#0E0E12] p-5 shadow-[inset_0_1px_rgba(255,255,255,0.05),0_10px_20px_rgba(0,0,0,0.4)]">
+      <div className="mb-4 flex items-center justify-between px-1">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Integrations</h3>
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-slate-400">
+          4
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {integrations.map(({ name, icon: Icon, connected }) => (
           <button
             key={name}
             type="button"
             className={cn(
-              "group flex h-11 w-11 items-center justify-center rounded-xl border transition",
+              "group flex h-12 items-center justify-center rounded-xl border transition-all duration-300",
               connected
-                ? "border-violet/25 bg-violet/10 text-violet-light"
-                : "border-white/[0.06] bg-white/[0.03] text-[var(--text-dim)] hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white",
+                ? "border-violet/30 bg-violet/10 text-violet-light shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]"
+                : "border-white/5 bg-[#16161E] text-slate-500 hover:border-white/20 hover:text-white shadow-[0_2px_4px_rgba(0,0,0,0.2),inset_0_1px_rgba(255,255,255,0.05)]",
               focusRing,
             )}
             title={connected ? `${name} (connected)` : `Connect ${name}`}
             aria-label={connected ? `${name} connected` : `Connect ${name}`}
           >
-            <Icon className="h-[18px] w-[18px] transition group-hover:scale-105" />
+            <Icon className="h-5 w-5 transition group-hover:scale-110" />
           </button>
         ))}
-        <button
-          type="button"
-          className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-xl border border-dashed border-white/[0.08] text-[var(--text-dim)] transition hover:border-violet/20 hover:text-violet-light",
-            focusRing,
-          )}
-          aria-label="Add integration"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );

@@ -38,7 +38,11 @@ const agentRows = [
   {
     category: "CORE AGENTS",
     agents: [
-      { name: "Deep Researcher", icon: Search, desc: "Cited, fact-checked answers" },
+      {
+        name: "Deep Researcher",
+        icon: Search,
+        desc: "Cited, fact-checked answers",
+      },
       { name: "Data Analyst", icon: Calculator, desc: "CSV, charts, insights" },
       { name: "Coding Agent", icon: Code2, desc: "Sandboxed code execution" },
     ],
@@ -64,7 +68,11 @@ const agentRows = [
     agents: [
       { name: "Email Drafter", icon: Mail, desc: "Context-aware emails" },
       { name: "Report Builder", icon: FileText, desc: "Structured summaries" },
-      { name: "Web Scraper", icon: Globe, desc: "Firecrawl-powered extraction" },
+      {
+        name: "Web Scraper",
+        icon: Globe,
+        desc: "Firecrawl-powered extraction",
+      },
     ],
   },
 ];
@@ -82,10 +90,12 @@ export function AgentsShowcase() {
             transition={{ duration: 0.6 }}
           >
             <span className="pill-badge mb-4">Agents</span>
-            <h2 className="mt-4 font-display text-4xl font-bold sm:text-5xl">
+            <h2 className="mt-4 font-display text-5xl font-bold sm:text-6xl">
               <span className="text-white/90">Specialized agents.</span>
               <br />
-              <span className="text-[var(--text-muted)]">Infinite possibilities.</span>
+              <span className="text-[var(--text-muted)]">
+                Infinite possibilities.
+              </span>
             </h2>
           </motion.div>
           <motion.div
@@ -95,10 +105,10 @@ export function AgentsShowcase() {
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <p className="text-sm leading-relaxed text-[var(--text-muted)] lg:text-right">
-              Chain purpose-built agents into fully automated workflows.
-              Each agent is optimized for its domain and routes through 
-              the best model for the task.
+            <p className="text-base leading-relaxed text-[var(--text-muted)] lg:text-right">
+              Chain purpose-built agents into fully automated workflows. Each
+              agent is optimized for its domain and routes through the best
+              model for the task.
             </p>
           </motion.div>
         </div>
@@ -129,10 +139,10 @@ export function AgentsShowcase() {
                       <agent.icon className="h-5 w-5 text-white/35 transition group-hover:text-violet-light" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-white/80">
+                      <h3 className="text-base font-semibold text-white/80">
                         {agent.name}
                       </h3>
-                      <p className="text-xs text-[var(--text-muted)]">
+                      <p className="text-sm text-[var(--text-muted)]">
                         {agent.desc}
                       </p>
                     </div>
@@ -152,15 +162,19 @@ export function AgentsShowcase() {
           transition={{ duration: 0.6 }}
         >
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold text-white/80">12</span>
-            <span className="text-sm font-medium uppercase tracking-wider text-[var(--text-dim)]">
+            <span className="font-display text-4xl font-bold text-white/80">
+              12
+            </span>
+            <span className="text-base font-medium uppercase tracking-wider text-[var(--text-dim)]">
               agents at launch
             </span>
           </div>
           <span className="text-white/15">·</span>
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold text-white/80">50+</span>
-            <span className="text-sm font-medium uppercase tracking-wider text-[var(--text-dim)]">
+            <span className="font-display text-4xl font-bold text-white/80">
+              50+
+            </span>
+            <span className="text-base font-medium uppercase tracking-wider text-[var(--text-dim)]">
               by year end
             </span>
           </div>

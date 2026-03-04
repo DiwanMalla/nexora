@@ -9,27 +9,34 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
       {/* ─── Aurora / Glow Background ─── */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Main center glow - Violet */}
-        <div 
+        <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20 blur-[140px]"
-          style={{ background: "radial-gradient(circle, #7C3AED 0%, transparent 70%)" }}
+          style={{
+            background: "radial-gradient(circle, #7C3AED 0%, transparent 70%)",
+          }}
         />
-        
+
         {/* Secondary cyan glow */}
-        <div 
+        <div
           className="absolute -bottom-40 -left-20 w-[600px] h-[600px] rounded-full opacity-10 blur-[120px]"
-          style={{ background: "radial-gradient(circle, #06B6D4 0%, transparent 70%)" }}
+          style={{
+            background: "radial-gradient(circle, #06B6D4 0%, transparent 70%)",
+          }}
         />
 
         {/* Aurora mesh from globals.css */}
         <div className="aurora-mesh opacity-40" />
-        
+
         {/* Grain texture */}
         <div className="grain absolute inset-0 opacity-[0.03]" />
       </div>
 
       {/* ─── Logo (Top Left) ─── */}
       <div className="absolute top-8 left-8 z-50">
-        <Link href="/" className="flex items-center gap-2.5 group transition-all hover:opacity-80 active:scale-95">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 group transition-all hover:opacity-80 active:scale-95"
+        >
           <svg
             width="32"
             height="32"
@@ -51,7 +58,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             />
             <circle cx="14" cy="14" r="4" fill="url(#auth-logo-grad)" />
           </svg>
-          <span className="font-display text-xl font-bold tracking-tight text-white/90">
+          <span className="font-display text-2xl font-bold tracking-tight text-white/90">
             Nexora
           </span>
         </Link>
@@ -65,10 +72,14 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ─── Footer Links (Optional, matching Kumari) ─── */}
-      <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center gap-6 text-[10px] uppercase tracking-widest text-white/20 font-bold">
-        <Link href="/terms" className="hover:text-white/40 transition">Terms</Link>
+      <div className="absolute bottom-8 left-0 right-0 z-50 flex justify-center gap-6 text-[12px] uppercase tracking-widest text-white/20 font-bold">
+        <Link href="/terms" className="hover:text-white/40 transition">
+          Terms
+        </Link>
         <span className="opacity-50">|</span>
-        <Link href="/privacy" className="hover:text-white/40 transition">Privacy</Link>
+        <Link href="/privacy" className="hover:text-white/40 transition">
+          Privacy
+        </Link>
       </div>
     </div>
   );

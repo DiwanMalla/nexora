@@ -29,7 +29,7 @@ export function CTASection() {
           </span>
           <h2
             id="cta-heading"
-            className="font-display text-3xl font-bold text-white/90 sm:text-4xl lg:text-5xl"
+            className="font-display text-4xl font-bold text-white/90 sm:text-5xl lg:text-6xl"
           >
             Stop searching.
             <br />
@@ -38,27 +38,27 @@ export function CTASection() {
             </span>
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-[var(--text-muted)]">
-            Join the next generation of AI workflows. Multi-model reasoning, 
+            Join the next generation of AI workflows. Multi-model reasoning,
             verified citations, and execution blocks — all in one platform.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/sign-up"
-              className="group inline-flex items-center gap-2.5 rounded-xl bg-white px-7 py-4 text-sm font-semibold text-black transition-all duration-200 hover:bg-white/90 hover:shadow-xl hover:shadow-violet/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-white px-7 py-4 text-base font-semibold text-black transition-all duration-200 hover:bg-white/90 hover:shadow-xl hover:shadow-violet/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
             >
               Start Free
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/docs"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.03] px-7 py-4 text-sm font-medium text-white/70 backdrop-blur-sm transition-all duration-200 hover:border-white/[0.18] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.03] px-7 py-4 text-base font-medium text-white/70 backdrop-blur-sm transition-all duration-200 hover:border-white/[0.18] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
             >
               Read the Docs
             </Link>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-sm items-center justify-center gap-6 text-xs text-[var(--text-dim)]">
+          <div className="mx-auto mt-8 flex max-w-sm items-center justify-center gap-6 text-sm text-[var(--text-dim)]">
             <span>Free: 20 msgs/day</span>
             <span className="text-white/10">·</span>
             <span>Pro: $12/month</span>

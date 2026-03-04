@@ -46,12 +46,15 @@ export function FAQSection() {
             transition={{ duration: 0.6 }}
           >
             <span className="pill-badge mb-4">FAQ</span>
-            <h2 className="mt-4 font-display text-3xl font-bold text-white/90 sm:text-4xl">
+            <h2 className="mt-4 font-display text-4xl font-bold text-white/90 sm:text-5xl">
               Got questions?
             </h2>
-            <p className="mt-3 text-sm text-[var(--text-muted)]">
+            <p className="mt-3 text-base text-[var(--text-muted)]">
               Can&apos;t find what you&apos;re looking for? Check our{" "}
-              <a href="/docs" className="text-cyan underline underline-offset-2 transition hover:text-cyan-light">
+              <a
+                href="/docs"
+                className="text-cyan underline underline-offset-2 transition hover:text-cyan-light"
+              >
                 docs
               </a>{" "}
               or reach out on Discord.
@@ -75,10 +78,10 @@ export function FAQSection() {
                   onClick={() => setOpen(open === i ? null : i)}
                   aria-expanded={open === i}
                 >
-                  <span className="text-[0.65rem] font-bold text-white/15">
+                  <span className="text-[0.75rem] font-bold text-white/15">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="flex-1 text-[0.95rem] font-medium text-white/80">
+                  <span className="flex-1 text-[1.05rem] font-medium text-white/80">
                     {faq.q}
                   </span>
                   <motion.div
@@ -94,10 +97,13 @@ export function FAQSection() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] as const }}
+                      transition={{
+                        duration: 0.3,
+                        ease: [0.16, 1, 0.3, 1] as const,
+                      }}
                       className="overflow-hidden"
                     >
-                      <p className="pb-5 pl-9 text-sm leading-relaxed text-[var(--text-muted)]">
+                      <p className="pb-5 pl-9 text-base leading-relaxed text-[var(--text-muted)]">
                         {faq.a}
                       </p>
                     </motion.div>

@@ -37,20 +37,20 @@ export function PromoCard() {
         </div>
         <div className="min-w-0 flex-1 pr-4">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-semibold text-white">Voice mode</h3>
-            <span className="flex items-center gap-1 rounded-full bg-cyan/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan">
+            <h3 className="text-base font-semibold text-white">Voice mode</h3>
+            <span className="flex items-center gap-1 rounded-full bg-cyan/10 px-1.5 py-0.5 text-[12px] font-semibold text-cyan">
               <Sparkles className="h-2.5 w-2.5" />
               New
             </span>
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-[var(--text-dim)]">
+          <p className="mt-1 text-sm leading-relaxed text-[var(--text-dim)]">
             Turn speech into messages, emails, and docs — 4× faster than typing.
           </p>
           <div className="mt-3 flex gap-2">
             <Link
               href="/voice"
               className={cn(
-                "rounded-lg bg-violet/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-violet/20 transition hover:bg-violet",
+                "rounded-lg bg-violet/90 px-3 py-1.5 text-sm font-semibold text-white shadow-lg shadow-violet/20 transition hover:bg-violet",
                 focusRing,
               )}
             >

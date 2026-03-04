@@ -46,12 +46,12 @@ export function RecentActivity() {
       <div className="flex items-center justify-between border-b border-white/[0.04] px-4 py-3">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-[var(--text-dim)]" />
-          <h3 className="text-sm font-semibold text-white">Recent</h3>
+          <h3 className="text-base font-semibold text-white">Recent</h3>
         </div>
         <Link
           href="/workspace/history"
           className={cn(
-            "flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)] transition hover:text-white",
+            "flex items-center gap-1 text-[13px] font-medium text-[var(--text-muted)] transition hover:text-white",
             focusRing,
           )}
         >
@@ -88,16 +88,16 @@ export function RecentActivity() {
             </span>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm text-white/90 group-hover:text-white">
+              <p className="truncate text-base text-white/90 group-hover:text-white">
                 {item.title}
               </p>
               <div className="mt-0.5 flex items-center gap-2">
                 {item.model && (
-                  <span className="text-[10px] font-mono text-[var(--text-dim)]">
+                  <span className="text-[12px] font-mono text-[var(--text-dim)]">
                     {item.model}
                   </span>
                 )}
-                <span className="text-[10px] text-[var(--text-dim)]">
+                <span className="text-[12px] text-[var(--text-dim)]">
                   {item.time}
                 </span>
               </div>
@@ -111,10 +111,10 @@ export function RecentActivity() {
       {recentItems.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <Clock className="h-8 w-8 text-[var(--text-dim)]" />
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
+          <p className="mt-2 text-base text-[var(--text-muted)]">
             No conversations yet
           </p>
-          <p className="mt-0.5 text-xs text-[var(--text-dim)]">
+          <p className="mt-0.5 text-sm text-[var(--text-dim)]">
             Start by asking a question above
           </p>
         </div>

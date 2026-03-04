@@ -3,48 +3,34 @@ import { CommandBar } from "@/components/dashboard/CommandBar";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { AgentTiles } from "@/components/dashboard/AgentTiles";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { IntegrationsRow } from "@/components/dashboard/IntegrationsRow";
-import { UsageStats } from "@/components/dashboard/UsageStats";
-import { PromoCard } from "@/components/dashboard/PromoCard";
 
 export default function WorkspacePage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8 sm:px-8 lg:px-10">
-      {/* Greeting */}
+    <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-6 py-14 sm:px-10 lg:px-16 animate-in fade-in duration-1000">
+      {/* Brand heading */}
       <Greeting />
 
       {/* Command bar */}
-      <div className="mt-8">
+      <div className="mt-10 w-full">
         <CommandBar />
       </div>
 
-      {/* Quick actions */}
-      <div className="mt-6 flex justify-center">
+      {/* Quick action icons */}
+      <div className="mt-12 w-full">
         <QuickActions />
       </div>
 
-      {/* Main grid: content + sidebar */}
-      <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
-        {/* Left column */}
-        <div className="space-y-6">
-          {/* Agent tiles */}
-          <AgentTiles />
+      {/* Divider */}
+      <div className="my-16 h-px w-full max-w-lg bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-          {/* Recent activity */}
-          <RecentActivity />
-        </div>
+      {/* Explore agents */}
+      <div className="w-full max-w-6xl">
+        <AgentTiles />
+      </div>
 
-        {/* Right column (sidebar widgets) */}
-        <div className="space-y-4">
-          {/* Usage stats */}
-          <UsageStats />
-
-          {/* Integrations */}
-          <IntegrationsRow />
-
-          {/* Promo card */}
-          <PromoCard />
-        </div>
+      {/* Recent activity */}
+      <div className="mt-16 w-full max-w-6xl">
+        <RecentActivity />
       </div>
     </div>
   );

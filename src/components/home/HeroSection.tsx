@@ -58,15 +58,14 @@ export function HeroSection() {
       {/* Grain */}
       <div className="grain absolute inset-0" aria-hidden="true" />
       {/* Dot grid */}
-      <div className="dot-grid absolute inset-0 opacity-40" aria-hidden="true" />
+      <div
+        className="dot-grid absolute inset-0 opacity-40"
+        aria-hidden="true"
+      />
 
       <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
         {/* ─── LEFT: Text content ─── */}
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="visible"
-        >
+        <motion.div variants={container} initial="hidden" animate="visible">
           <motion.div variants={fadeUp}>
             <span className="pill-badge">
               <Sparkles className="h-3.5 w-3.5" />
@@ -77,7 +76,7 @@ export function HeroSection() {
           <motion.h1
             id="hero-heading"
             variants={fadeUp}
-            className="mt-6 font-display text-5xl font-bold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
+            className="mt-6 font-display text-6xl font-bold leading-[1.05] tracking-tight sm:text-7xl lg:text-8xl"
           >
             <span className="text-white">Search.</span>
             <br />
@@ -90,24 +89,27 @@ export function HeroSection() {
 
           <motion.p
             variants={fadeUp}
-            className="mt-6 max-w-lg text-lg leading-relaxed text-[var(--text-muted)]"
+            className="mt-6 max-w-lg text-xl leading-relaxed text-[var(--text-muted)]"
           >
-            Nexora is your intelligent command center. Multi-agent reasoning on 
-            10+ models, verifiable citations, and execution blocks that turn 
+            Nexora is your intelligent command center. Multi-agent reasoning on
+            10+ models, verifiable citations, and execution blocks that turn
             search results into real actions.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="mt-8 flex flex-wrap items-center gap-4">
+          <motion.div
+            variants={fadeUp}
+            className="mt-8 flex flex-wrap items-center gap-4"
+          >
             <Link
               href="/sign-up"
-              className="group inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-black transition-all duration-200 hover:bg-white/90 hover:shadow-xl hover:shadow-violet/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-base font-semibold text-black transition-all duration-200 hover:bg-white/90 hover:shadow-xl hover:shadow-violet/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
             >
               Start Free
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               href="/docs"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.03] px-6 py-3.5 text-sm font-medium text-white/70 backdrop-blur-sm transition-all duration-200 hover:border-white/[0.18] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.03] px-6 py-3.5 text-base font-medium text-white/70 backdrop-blur-sm transition-all duration-200 hover:border-white/[0.18] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
             >
               Watch Demo
             </Link>
@@ -115,7 +117,7 @@ export function HeroSection() {
 
           <motion.p
             variants={fadeUp}
-            className="mt-4 text-xs text-[var(--text-dim)]"
+            className="mt-4 text-sm text-[var(--text-dim)]"
           >
             Free tier · 20 messages/day · 5 agent uses · No credit card
           </motion.p>
@@ -132,7 +134,7 @@ export function HeroSection() {
             {/* Chat header */}
             <div className="mb-4 flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-400/70" />
-              <span className="text-xs font-medium text-white/40">
+              <span className="text-sm font-medium text-white/40">
                 Nexora AI · Research Mode
               </span>
             </div>
@@ -140,7 +142,7 @@ export function HeroSection() {
             {/* User query */}
             <div className="mb-4 flex justify-end">
               <div className="rounded-xl rounded-br-md bg-violet/20 px-4 py-2.5">
-                <p className="text-sm text-white/80">
+                <p className="text-base text-white/80">
                   What is the projected impact of renewable energy storage on
                   grid stability in California?
                 </p>
@@ -149,15 +151,14 @@ export function HeroSection() {
 
             {/* AI response with citations */}
             <div className="mb-4 rounded-xl bg-white/[0.03] px-4 py-3 border border-white/[0.05]">
-              <p className="text-sm leading-relaxed text-white/60">
-                The adoption of lithium-ion and flow batteries is expected to 
-                significantly enhance grid stability by providing rapid frequency 
-                response and absorbing excess solar generation during the day for 
-                use at night.{" "}
-                <sup className="text-cyan/70">[1]</sup>{" "}
-                California&apos;s SB 100 mandate aims for 100% clean energy by 2045, with 
-                storage playing a critical role.{" "}
-                <sup className="text-cyan/70">[2]</sup>
+              <p className="text-base leading-relaxed text-white/60">
+                The adoption of lithium-ion and flow batteries is expected to
+                significantly enhance grid stability by providing rapid
+                frequency response and absorbing excess solar generation during
+                the day for use at night.{" "}
+                <sup className="text-cyan/70">[1]</sup> California&apos;s SB 100
+                mandate aims for 100% clean energy by 2045, with storage playing
+                a critical role. <sup className="text-cyan/70">[2]</sup>
               </p>
 
               {/* Citations */}
@@ -165,7 +166,7 @@ export function HeroSection() {
                 {citations.map((c) => (
                   <span
                     key={c.id}
-                    className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-2 py-1 text-[0.65rem] text-white/40"
+                    className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-2 py-1 text-[0.75rem] text-white/40"
                   >
                     <ExternalLink className="h-2.5 w-2.5" />
                     {c.domain}
@@ -177,7 +178,7 @@ export function HeroSection() {
 
             {/* ─── Execution Blocks — Nexora's unique feature ─── */}
             <div className="mb-3">
-              <span className="mb-2 block text-[0.65rem] font-semibold uppercase tracking-widest text-white/25">
+              <span className="mb-2 block text-[0.75rem] font-semibold uppercase tracking-widest text-white/25">
                 Execution Blocks
               </span>
               <div className="flex flex-wrap gap-2">
