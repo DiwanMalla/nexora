@@ -6,18 +6,11 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { AgentTiles } from "@/components/dashboard/AgentTiles";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 
-import {
-  useWorkspace,
-  AVAILABLE_MODELS,
-} from "@/components/dashboard/WorkspaceProvider";
+import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
+import { AVAILABLE_MODELS } from "@/lib/constants";
+import { ChatMessage } from "@/types";
 import { ChatMessages } from "@/components/dashboard/ChatMessages";
-import { Brain, Sparkles, MessageSquare, ArrowLeft } from "lucide-react";
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-};
+import { Brain, Sparkles, MessageSquare, ArrowLeft, Bot as BotIcon } from "lucide-react";
 
 export default function WorkspacePage() {
   const { isMultiChat, selectedModel } = useWorkspace();
@@ -112,8 +105,8 @@ export default function WorkspacePage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet/20 border border-violet/30 shadow-lg">
             <Brain className="h-8 w-8 text-violet-light" />
           </div>
-          <h1 className="text-4xl font-bold text-white">Multi-Chat Mode</h1>
-          <p className="mt-2 text-slate-500">
+          <h1 className="text-4xl font-bold text-text">Multi-Chat Mode</h1>
+          <p className="mt-2 text-text-muted">
             Compare responses from all selected models simultaneously.
           </p>
         </div>
@@ -134,10 +127,10 @@ export default function WorkspacePage() {
             >
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-400">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-text-muted">
                     <MessageSquare className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-bold text-white">
+                  <span className="text-sm font-bold text-text">
                     {model.name}
                   </span>
                 </div>
@@ -148,7 +141,7 @@ export default function WorkspacePage() {
                 <div className="h-3 w-1/2 rounded-full bg-white/5" />
                 <div className="h-3 w-2/3 rounded-full bg-white/5" />
               </div>
-              <div className="mt-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-600">
+              <div className="mt-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-text-dim">
                 <Sparkles className="h-3 w-3" />
                 {model.provider}
               </div>
@@ -160,21 +153,28 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col px-6 sm:px-10 lg:px-16 animate-in fade-in duration-1000">
+    <div className="relative mx-auto flex h-full w-full max-w-5xl flex-col px-6 sm:px-10 lg:px-16">
       {isChatting ? (
-        <div className="flex flex-1 flex-col py-10">
-          <button
-            onClick={() => setMessages([])}
-            className="mb-8 flex w-fit items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-slate-500 transition-colors hover:text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            New Chat
-          </button>
+        <div className="flex flex-1 flex-col py-10 animate-in fade-in duration-500">
+          <div className="mb-6 flex items-center justify-between">
+            <button
+              onClick={() => setMessages([])}
+              className="group flex items-center gap-2.5 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-2 text-xs font-bold uppercase tracking-widest text-text-muted transition-all hover:bg-white/10 hover:text-text"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
+              New session
+            </button>
+            
+            <div className="flex items-center gap-2 rounded-full border border-violet/20 bg-violet/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-violet-light">
+              <Sparkles className="h-3 w-3" />
+              Conversation Active
+            </div>
+          </div>
 
           <ChatMessages messages={messages} isLoading={isLoading} />
 
           {/* Sticky input area */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/95 to-transparent pb-10 pt-20 lg:pl-60">
+          <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-gradient-to-t from-[#050505] via-[#050505]/95 to-transparent pb-10 pt-20 lg:pl-64">
             <div className="w-full max-w-3xl px-6">
               <CommandBar
                 input={input}
@@ -186,12 +186,17 @@ export default function WorkspacePage() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center py-14">
-          {/* Brand heading */}
-          <Greeting />
+        <div className="flex flex-1 flex-col items-center justify-center py-20 animate-in fade-in zoom-in-[0.98] duration-1000">
+          <div className="mb-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-violet/20 bg-violet/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.05)]">
+               <BotIcon className="h-10 w-10 text-violet-light" />
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-text sm:text-5xl">
+              What can I help with?
+            </h1>
+          </div>
 
-          {/* Command bar */}
-          <div className="mt-10 w-full">
+          <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
             <CommandBar
               input={input}
               handleInputChange={handleInputChange}
@@ -200,22 +205,33 @@ export default function WorkspacePage() {
             />
           </div>
 
-          {/* Quick action icons */}
-          <div className="mt-12 w-full">
-            <QuickActions />
+          {/* Feature Grid */}
+          <div className="mt-24 grid w-full max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
+             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet-light">
+                   <Brain className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Expert Agents</h3>
+                <p className="text-xs leading-relaxed text-text-muted font-medium">Switch between Researcher, Developer, or Analyst for specialized workflows.</p>
+             </div>
+             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                   <MessageSquare className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Multi-Chat</h3>
+                <p className="text-xs leading-relaxed text-text-muted font-medium">Enable Multi-Chat to compare outputs from Llama 3, GPT-4, and Gemini side-by-side.</p>
+             </div>
+             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                   <Sparkles className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Smart Search</h3>
+                <p className="text-xs leading-relaxed text-text-muted font-medium">Use AI Agent mode for deep research and real-time knowledge discovery.</p>
+             </div>
           </div>
-
-          {/* Divider */}
-          <div className="my-16 h-px w-full max-w-lg bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-          {/* Explore agents */}
-          <div className="w-full max-w-6xl">
-            <AgentTiles />
-          </div>
-
-          {/* Recent activity */}
-          <div className="mt-16 w-full max-w-6xl">
-            <RecentActivity />
+          
+          <div className="mt-20 w-full animate-in fade-in duration-1000 delay-500">
+             <RecentActivity />
           </div>
         </div>
       )}

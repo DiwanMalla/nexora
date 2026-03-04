@@ -17,6 +17,16 @@ const config: Config = {
           DEFAULT: "#06B6D4",
           light: "#22d3ee",
         },
+        bg: "var(--bg)",
+        "bg-elevated": "var(--bg-elevated)",
+        "bg-card": "var(--bg-card)",
+        text: "var(--text)",
+        "text-muted": "var(--text-muted)",
+        "text-dim": "var(--text-dim)",
+      },
+      spacing: {
+        content: "var(--space-content)",
+        section: "var(--space-section)",
       },
       fontFamily: {
         sans: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {
-  Bot,
+  Bot as BotIcon,
   Search,
   Code2,
   FileText,
@@ -37,7 +37,7 @@ const actions: QuickAction[] = [
   {
     href: "/chat",
     label: "AI Chat",
-    icon: Bot,
+    icon: BotIcon,
     color: "bg-blue-500/15 text-blue-400 border-blue-500/25",
     badge: "Unlimited",
   },

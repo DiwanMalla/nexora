@@ -3,7 +3,9 @@
 import React from "react";
 import { X, Check, Brain, Zap, Globe, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWorkspace, AVAILABLE_MODELS } from "./WorkspaceProvider";
+import { AVAILABLE_MODELS } from "@/lib/constants";
+import { AIModel } from "@/types";
+import { useWorkspace } from "./WorkspaceProvider";
 
 interface ModelPreferenceModalProps {
   open: boolean;
@@ -40,7 +42,7 @@ export function ModelPreferenceModal({ open, onClose }: ModelPreferenceModalProp
         {/* List */}
         <div className="p-6">
           <div className="space-y-3">
-            {AVAILABLE_MODELS.map((model) => {
+            {AVAILABLE_MODELS.map((model: AIModel) => {
               const isActive = selectedModel === model.id;
               return (
                 <button

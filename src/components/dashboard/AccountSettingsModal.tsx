@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   X,
@@ -15,13 +15,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Loader2,
-  ShieldCheck,
   UserCircle2,
   Mail,
   Phone,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,14 +29,9 @@ type AccountSettingsModalProps = {
 type SettingsTab = "general" | "ai" | "memory" | "subscription" | "profile";
 type ThemeMode = "system" | "light" | "dark";
 
-type GroqModel = {
-  id: string;
-  object?: string;
-  owned_by?: string;
-};
-
-type GroqResponse = {
-  data?: GroqModel[];
+type AIProviderPref = {
+  enabled: boolean;
+  modelId: string;
 };
 
 type UserSettings = {
@@ -52,9 +43,10 @@ type UserSettings = {
   profilePhoneCountry: string;
   profilePhoneNumber: string;
   modelOrder: string[];
+  aiProviderPrefs: Record<string, AIProviderPref>;
 };
 
-const STORAGE_KEY = "nexora.account.settings.v1";
+const STORAGE_KEY = "nexora.account.settings.v2";
 
 const navItems = [
   { key: "general" as const, label: "General", icon: Settings },
@@ -64,19 +56,126 @@ const navItems = [
   { key: "profile" as const, label: "Profile", icon: User },
 ];
 
-const curatedModels = [
-  { provider: "ChatGPT", model: "GPT-5 mini" },
-  { provider: "Gemini", model: "Gemini 2.5 Lite" },
-  { provider: "DeepSeek", model: "DeepSeek Chat" },
-  { provider: "Perplexity", model: "Perplexity Sonar" },
-  { provider: "Anthropic", model: "Claude Haiku 4.5" },
-  { provider: "xAI", model: "Grok 3 Mini" },
-  { provider: "ByteDance", model: "Seedream 4.0" },
-  { provider: "Moonshot", model: "Kimi-k2" },
-  { provider: "Mistral", model: "Codestral" },
-  { provider: "Qwen", model: "Qwen Flash" },
-  { provider: "Meta", model: "Llama 4 Scout" },
+// Providers with logo (letter/emoji) and their selectable models
+const AI_PROVIDERS: {
+  id: string;
+  name: string;
+  logo: string; // emoji or single char for logo circle
+  accent: string; // tailwind bg/ring for logo
+  models: { id: string; name: string }[];
+}[] = [
+  {
+    id: "chatgpt",
+    name: "ChatGPT",
+    logo: "C",
+    accent: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    models: [
+      { id: "gpt-5-mini", name: "GPT-5 mini" },
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "gpt-4o-mini", name: "GPT-4o mini" },
+    ],
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    logo: "G",
+    accent: "bg-violet-500/20 text-violet-400 border-violet-500/30",
+    models: [
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B" },
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
+      { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" },
+      { id: "openai/gpt-oss-20b", name: "GPT-OSS 20B" },
+      { id: "groq/compound", name: "Groq Compound" },
+      { id: "groq/compound-mini", name: "Groq Compound Mini" },
+    ],
+  },
+  {
+    id: "gemini",
+    name: "Gemini",
+    logo: "G",
+    accent: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    models: [
+      { id: "gemini-2.5-lite", name: "Gemini 2.5 Lite" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+    ],
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    logo: "A",
+    accent: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    models: [
+      { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
+      { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
+      { id: "claude-opus-4", name: "Claude Opus 4" },
+    ],
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    logo: "D",
+    accent: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    models: [
+      { id: "deepseek-chat", name: "DeepSeek Chat" },
+      { id: "deepseek-coder", name: "DeepSeek Coder" },
+    ],
+  },
+  {
+    id: "perplexity",
+    name: "Perplexity",
+    logo: "P",
+    accent: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    models: [
+      { id: "sonar", name: "Perplexity Sonar" },
+      { id: "sonar-pro", name: "Sonar Pro" },
+    ],
+  },
+  {
+    id: "xai",
+    name: "xAI",
+    logo: "x",
+    accent: "bg-slate-400/20 text-slate-300 border-slate-400/30",
+    models: [
+      { id: "grok-3-mini", name: "Grok 3 Mini" },
+      { id: "grok-3", name: "Grok 3" },
+    ],
+  },
+  {
+    id: "meta",
+    name: "Meta",
+    logo: "M",
+    accent: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+    models: [
+      { id: "llama-4-scout", name: "Llama 4 Scout" },
+      { id: "llama-3.1-70b", name: "Llama 3.1 70B" },
+    ],
+  },
+  {
+    id: "moonshot",
+    name: "Moonshot",
+    logo: "K",
+    accent: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30",
+    models: [
+      { id: "kimi-k2", name: "Kimi K2" },
+    ],
+  },
+  {
+    id: "qwen",
+    name: "Qwen",
+    logo: "Q",
+    accent: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    models: [
+      { id: "qwen-flash", name: "Qwen Flash" },
+      { id: "qwen3-32b", name: "Qwen3-32B" },
+    ],
+  },
 ];
+
+const defaultProviderPref = (provider: (typeof AI_PROVIDERS)[0]): AIProviderPref => ({
+  enabled: provider.id === "groq",
+  modelId: provider.models[0]?.id ?? "",
+});
 
 const defaultSettings: UserSettings = {
   tab: "general",
@@ -86,7 +185,10 @@ const defaultSettings: UserSettings = {
   profileName: "",
   profilePhoneCountry: "+61",
   profilePhoneNumber: "",
-  modelOrder: curatedModels.map((item) => `${item.provider}::${item.model}`),
+  modelOrder: [],
+  aiProviderPrefs: Object.fromEntries(
+    AI_PROVIDERS.map((p) => [p.id, defaultProviderPref(p)]),
+  ),
 };
 
 function applyTheme(theme: ThemeMode) {
@@ -107,18 +209,25 @@ export function AccountSettingsModal({
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [savePulse, setSavePulse] = useState(false);
-  const [groqLoading, setGroqLoading] = useState(false);
-  const [groqError, setGroqError] = useState("");
-  const [groqModels, setGroqModels] = useState<string[]>([]);
-  const [orderedModels, setOrderedModels] = useState(curatedModels);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const profileEmail = user?.primaryEmailAddress?.emailAddress || "";
   const profileName = settings.profileName;
 
-  const availableGroqModels = useMemo(
-    () => Array.from(new Set(groqModels)).sort((a, b) => a.localeCompare(b)),
-    [groqModels],
-  );
+  const prefs = settings.aiProviderPrefs ?? defaultSettings.aiProviderPrefs;
+
+  const setProviderPref = (providerId: string, update: Partial<AIProviderPref>) => {
+    setSettings((prev) => ({
+      ...prev,
+      aiProviderPrefs: {
+        ...prev.aiProviderPrefs,
+        [providerId]: {
+          ...prev.aiProviderPrefs[providerId],
+          ...update,
+        },
+      },
+    }));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -136,23 +245,16 @@ export function AccountSettingsModal({
   useEffect(() => {
     if (!open) return;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
+      const raw =
+        window.localStorage.getItem(STORAGE_KEY) ??
+        window.localStorage.getItem("nexora.account.settings.v1");
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<UserSettings>;
-      setSettings((prev) => ({ ...prev, ...parsed }));
-      if (parsed.modelOrder && parsed.modelOrder.length > 0) {
-        const next = [...curatedModels].sort((left, right) => {
-          const leftKey = `${left.provider}::${left.model}`;
-          const rightKey = `${right.provider}::${right.model}`;
-          const leftIndex = parsed.modelOrder?.indexOf(leftKey) ?? -1;
-          const rightIndex = parsed.modelOrder?.indexOf(rightKey) ?? -1;
-          return (
-            (leftIndex === -1 ? 999 : leftIndex) -
-            (rightIndex === -1 ? 999 : rightIndex)
-          );
-        });
-        setOrderedModels(next);
+      const merged: Partial<UserSettings> = { ...parsed };
+      if (!merged.aiProviderPrefs && "modelOrder" in parsed) {
+        merged.aiProviderPrefs = defaultSettings.aiProviderPrefs;
       }
+      setSettings((prev) => ({ ...defaultSettings, ...prev, ...merged }));
       if (parsed.theme) applyTheme(parsed.theme);
     } catch {
       setSettings(defaultSettings);
@@ -176,60 +278,10 @@ export function AccountSettingsModal({
     applyTheme(settings.theme);
   }, [open, settings.theme]);
 
-  const moveModel = (index: number, direction: "up" | "down") => {
-    setOrderedModels((prev) => {
-      const target = direction === "up" ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
-      const updated = [...prev];
-      [updated[index], updated[target]] = [updated[target], updated[index]];
-      return updated;
-    });
-  };
-
-  useEffect(() => {
-    if (
-      !open ||
-      settings.tab !== "ai" ||
-      groqModels.length > 0 ||
-      groqLoading
-    ) {
-      return;
-    }
-
-    const fetchGroqModels = async () => {
-      try {
-        setGroqLoading(true);
-        setGroqError("");
-        const response = await fetch("/api/groq/models", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Unable to load Groq models right now.");
-        }
-        const payload = (await response.json()) as GroqResponse;
-        const modelNames =
-          payload.data
-            ?.map((item) => item.id)
-            .filter((model): model is string => Boolean(model)) || [];
-        setGroqModels(modelNames);
-      } catch (error) {
-        setGroqError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load Groq models right now.",
-        );
-      } finally {
-        setGroqLoading(false);
-      }
-    };
-
-    fetchGroqModels();
-  }, [open, settings.tab, groqLoading, groqModels.length]);
-
   const handleSave = () => {
     const payload: UserSettings = {
       ...settings,
-      modelOrder: orderedModels.map(
-        (item) => `${item.provider}::${item.model}`,
-      ),
+      aiProviderPrefs: prefs,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     applyTheme(settings.theme);
@@ -419,80 +471,114 @@ export function AccountSettingsModal({
             )}
 
             {settings.tab === "ai" && (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                  <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-white/60">
-                    Curated Providers
-                  </p>
-                  <div className="space-y-2.5">
-                    {orderedModels.map((item, index) => (
+              <div className="space-y-4">
+                <p className="text-sm text-white/60">
+                  Turn providers on or off and choose which model to use for each.
+                </p>
+                <div className="space-y-2">
+                  {AI_PROVIDERS.map((provider) => {
+                    const pref = prefs[provider.id] ?? defaultProviderPref(provider);
+                    const selectedModel = provider.models.find((m) => m.id === pref.modelId) ?? provider.models[0];
+                    const isOpen = openDropdownId === provider.id;
+                    return (
                       <div
-                        key={`${item.provider}-${item.model}`}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
+                        key={provider.id}
+                        className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
                       >
-                        <div>
-                          <p className="text-base font-semibold text-white/90">
-                            {item.provider}
-                          </p>
-                          <p className="text-sm font-medium text-white/65">
-                            {item.model}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => moveModel(index, "up")}
-                            disabled={index === 0}
-                            className="rounded-lg border border-white/10 p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Move ${item.provider} up`}
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveModel(index, "down")}
-                            disabled={index === orderedModels.length - 1}
-                            className="rounded-lg border border-white/10 p-1.5 text-white/70 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Move ${item.provider} down`}
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-violet/20 bg-violet/5 p-4">
-                  <div className="mb-3 flex items-center gap-2 text-violet-light">
-                    <ShieldCheck className="h-4 w-4" />
-                    <p className="text-sm font-semibold uppercase tracking-wider">
-                      Groq API models available
-                    </p>
-                  </div>
-                  {groqLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-white/70">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading models from Groq...
-                    </div>
-                  ) : groqError ? (
-                    <p className="text-sm text-rose-300">{groqError}</p>
-                  ) : availableGroqModels.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {availableGroqModels.map((model) => (
-                        <span
-                          key={model}
-                          className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-1 text-xs font-medium text-white/85"
+                        {/* Logo */}
+                        <div
+                          className={cn(
+                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg font-bold",
+                            provider.accent,
+                          )}
                         >
-                          {model}
+                          {provider.logo}
+                        </div>
+                        {/* Provider name */}
+                        <span className="min-w-[100px] text-base font-semibold text-white/90">
+                          {provider.name}
                         </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-white/70">
-                      No Groq models returned for this key.
-                    </p>
-                  )}
+                        {/* On/off toggle */}
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={pref.enabled}
+                          onClick={() =>
+                            setProviderPref(provider.id, {
+                              enabled: !pref.enabled,
+                            })
+                          }
+                          className={cn(
+                            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#12121A]",
+                            pref.enabled ? "bg-violet-500" : "bg-white/20",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "inline-block h-5 w-5 rounded-full bg-white transition-transform",
+                              pref.enabled ? "translate-x-5" : "translate-x-0.5",
+                            )}
+                          />
+                        </button>
+                        {/* Model dropdown (when enabled) */}
+                        {pref.enabled && (
+                          <div className="relative ml-auto">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenDropdownId(isOpen ? null : provider.id)
+                              }
+                              className="flex min-w-[160px] items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-left text-sm font-medium text-white/90 transition hover:bg-white/10"
+                            >
+                              <span className="truncate">
+                                {selectedModel?.name ?? "Select model"}
+                              </span>
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 shrink-0 text-white/50 transition-transform",
+                                  isOpen && "rotate-180",
+                                )}
+                              />
+                            </button>
+                            {isOpen && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-0"
+                                  aria-hidden
+                                  onClick={() => setOpenDropdownId(null)}
+                                />
+                                <div className="absolute right-0 top-full z-10 mt-1 min-w-[200px] overflow-hidden rounded-xl border border-white/10 bg-[#0E0E12] shadow-xl">
+                                  {provider.models.map((model) => (
+                                    <button
+                                      key={model.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setProviderPref(provider.id, {
+                                          modelId: model.id,
+                                        });
+                                        setOpenDropdownId(null);
+                                      }}
+                                      className={cn(
+                                        "flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition",
+                                        pref.modelId === model.id
+                                          ? "bg-violet-500/20 text-violet-200"
+                                          : "text-white/80 hover:bg-white/5 hover:text-white",
+                                      )}
+                                    >
+                                      {model.name}
+                                      {pref.modelId === model.id && (
+                                        <Check className="h-4 w-4 shrink-0" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
