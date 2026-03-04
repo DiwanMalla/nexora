@@ -18,8 +18,18 @@ import {
   ChevronRight,
   ArrowRight,
   Hexagon,
+  Settings,
+  Brain,
+  Bot,
+  ChevronDown,
+  Sparkles as SparklesIcon,
+  BarChart3,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AccountSettingsModal } from "@/components/dashboard/AccountSettingsModal";
+import { ModelPreferenceModal } from "@/components/dashboard/ModelPreferenceModal";
+import { useWorkspace, AVAILABLE_AGENTS, AVAILABLE_MODELS } from "./WorkspaceProvider";
 
 const mainNav = [
   { href: "/workspace", label: "Home", icon: Home },
@@ -29,11 +39,31 @@ const mainNav = [
 ];
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [modelModalOpen, setModelModalOpen] = useState(false);
+  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  
+  const { selectedModel, selectedAgent, setSelectedAgent } = useWorkspace();
+  
+  const activeModelObj = AVAILABLE_MODELS.find(m => m.id === selectedModel);
+  const activeAgentObj = AVAILABLE_AGENTS.find(a => a.id === selectedAgent);
+
+  const getAgentIcon = (id: string) => {
+    switch (id) {
+      case "ai-chat": return Bot;
+      case "researcher": return Search;
+      case "coder": return Code2;
+      case "analyst": return BarChart3;
+      default: return Bot;
+    }
+  };
+
+  const ActiveAgentIcon = getAgentIcon(selectedAgent);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
@@ -52,7 +82,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             className="flex items-center gap-3 overflow-hidden"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet to-cyan/80 shadow-[0_4px_12px_rgba(124,58,237,0.3)]">
-              <Hexagon className="h-4.5 w-4.5 text-white filter drop-shadow-sm" aria-hidden />
+              <Hexagon
+                className="h-4.5 w-4.5 text-white filter drop-shadow-sm"
+                aria-hidden
+              />
             </div>
             {sidebarOpen && (
               <span className="font-display text-lg font-bold tracking-tight text-white/90">
@@ -92,6 +125,89 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Plus className="h-4 w-4 shrink-0 stroke-[2.5px]" />
             {sidebarOpen && <span>New task</span>}
           </Link>
+        </div>
+
+        {/* Active Agent Section */}
+        <div className="px-3.5 pt-4">
+          <div className={cn(
+            "flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition-all",
+            !sidebarOpen && "justify-center px-0"
+          )}>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet/10 border border-violet/20">
+              <ActiveAgentIcon className="h-4 w-4 text-violet-light" />
+            </div>
+            {sidebarOpen && (
+              <div className="flex min-w-0 flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Active Agent</span>
+                <span className="truncate text-xs font-bold text-white">{activeAgentObj?.name}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Preference Tabs */}
+        <div className="mt-4 flex flex-col gap-1 px-2.5">
+          {/* Model Preference Tab */}
+          <button
+            onClick={() => setModelModalOpen(true)}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+              focusRing,
+              !sidebarOpen && "justify-center px-0"
+            )}
+          >
+            <Brain className="h-4.5 w-4.5 shrink-0 transition-colors group-hover:text-violet-light" />
+            {sidebarOpen && (
+              <div className="flex flex-1 items-center justify-between">
+                <span>Model Preference</span>
+                <div className="rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">{activeModelObj?.name.split(' ')[0]}</div>
+              </div>
+            )}
+          </button>
+
+          {/* AI Agent Selector Tab */}
+          <div className="relative">
+            <button
+              onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
+              className={cn(
+                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+                focusRing,
+                !sidebarOpen && "justify-center px-0"
+              )}
+            >
+              <SparklesIcon className="h-4.5 w-4.5 shrink-0 transition-colors group-hover:text-cyan-light" />
+              {sidebarOpen && (
+                <div className="flex flex-1 items-center justify-between">
+                  <span>AI Agent</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", agentDropdownOpen && "rotate-180")} />
+                </div>
+              )}
+            </button>
+            
+            {agentDropdownOpen && sidebarOpen && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#0E0E12] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                {AVAILABLE_AGENTS.map((agent) => {
+                  const AgentIcon = getAgentIcon(agent.id);
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => {
+                        setSelectedAgent(agent.id);
+                        setAgentDropdownOpen(false);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-3 px-4 py-3 text-sm font-bold transition-all",
+                        selectedAgent === agent.id ? "bg-white/5 text-white" : "text-slate-500 hover:bg-white/[0.02] hover:text-slate-300"
+                      )}
+                    >
+                      <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-violet-light" : "text-slate-600")} />
+                      {agent.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Nav links */}
@@ -170,14 +286,31 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               afterSignOutUrl="/"
               appearance={{
                 variables: { colorPrimary: "#7C3AED" },
-                elements: { avatarBox: "h-8 w-8" }
+                elements: { avatarBox: "h-8 w-8" },
               }}
             />
           </div>
           {sidebarOpen && (
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white/80">My Workspace</span>
-              <span className="text-[10px] font-semibold text-[var(--text-dim)]">Personal Account</span>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-xs font-bold text-white/80">
+                  My Workspace
+                </span>
+                <span className="truncate text-[10px] font-semibold text-[var(--text-dim)]">
+                  Personal Account
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className={cn(
+                  "rounded-lg p-1.5 text-[var(--text-dim)] transition-all hover:bg-white/5 hover:text-white",
+                  focusRing,
+                )}
+                aria-label="Open account settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>
@@ -233,6 +366,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="relative z-10">{children}</div>
         </main>
       </div>
+
+      <AccountSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
+      <ModelPreferenceModal
+        open={modelModalOpen}
+        onClose={() => setModelModalOpen(false)}
+      />
     </div>
   );
 }

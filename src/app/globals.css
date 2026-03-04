@@ -23,6 +23,19 @@
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan);
 }
 
+:root[data-theme="light"] {
+  --bg: #f5f7fb;
+  --bg-elevated: #ffffff;
+  --bg-card: #eef2f8;
+  --bg-card-hover: #e7edf6;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  --border: rgba(15, 23, 42, 0.1);
+  --border-hover: rgba(15, 23, 42, 0.16);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px rgba(124, 58, 237, 0.5);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
