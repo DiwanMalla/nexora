@@ -42,3 +42,15 @@ Open **http://localhost:3000**
 Next.js 16 · React 19 · TypeScript · Supabase · OpenRouter · Vercel AI SDK v4 · LangGraph · Tavily · Firecrawl · Vercel.
 
 See [docs/Readme.md](docs/Readme.md) and [docs/Architecture.md](docs/Architecture.md) for full details.
+
+---
+
+## 🌍 Open Source
+
+Nexora is now open-source ready.
+
+- License: [MIT](LICENSE)
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Community rules: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Issue templates: [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE)
+- PR template: [.github/pull_request_template.md](.github/pull_request_template.md)
