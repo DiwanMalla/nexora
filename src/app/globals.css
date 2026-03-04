@@ -3,29 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0a0c;
-  --bg-elevated: #111114;
-  --bg-card: #16161a;
-  --bg-card-hover: #1c1c21;
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --text-dim: #71717a;
-  --violet: #7c3aed;
-  --violet-light: #a78bfa;
-  --cyan: #06b6d4;
-  --cyan-light: #22d3ee;
-  --accent-success: #22c55e;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.1);
-  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --bg: #111111;
+  --bg-elevated: #161616;
+  --bg-card: #1c1c1c;
+  --bg-card-hover: #222222;
+  --text: #ffffff;
+  --text-muted: #888888;
+  --text-dim: #555555;
+  --violet: #ffffff;
+  --violet-light: #eeeeee;
+  --cyan: #ffffff;
+  --cyan-light: #dddddd;
+  --accent-success: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --font-display: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-body: ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-body);
-  --font-mono: var(--font-mono), ui-monospace, monospace;
-  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--cyan);
-  --space-content: 1.5rem;
-  --space-section: 2rem;
+  --font-mono: ui-monospace, monospace;
   --radius-card: 12px;
-  --line-height-readable: 1.6;
+  --line-height-readable: 1.5;
 }
 
 :root[data-theme="light"] {
@@ -50,7 +47,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: 0.875rem;
   line-height: var(--line-height-readable);
   letter-spacing: 0.01em;
   overflow-x: hidden;
@@ -59,7 +56,7 @@ body {
 /* Focus ring for accessibility */
 :focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--border);
   border-radius: 4px;
 }
 
@@ -83,163 +80,41 @@ body {
   .text-dim { color: var(--text-dim); }
 }
 
-/* ─── Grain overlay ─── */
-.grain::after {
+/* ─── Reasoning lines ─── */
+.reasoning-line {
+  position: relative;
+  padding-left: 2rem;
+}
+
+.reasoning-line::before {
   content: "";
   position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ─── Aurora gradient mesh (Nexora identity) ─── */
-.aurora-mesh {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.aurora-mesh::before {
-  content: "";
-  position: absolute;
-  top: -20%;
-  left: -10%;
-  width: 55%;
-  height: 70%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(124, 58, 237, 0.08) 0%,
-    transparent 70%
-  );
-  animation: aurora-drift 12s ease-in-out infinite;
-}
-
-.aurora-mesh::after {
-  content: "";
-  position: absolute;
-  bottom: -15%;
-  right: -8%;
-  width: 50%;
-  height: 65%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(6, 182, 212, 0.06) 0%,
-    transparent 70%
-  );
-  animation: aurora-drift 12s ease-in-out infinite reverse;
-}
-
-@keyframes aurora-drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(3%, -2%) scale(1.05);
-  }
-  66% {
-    transform: translate(-2%, 3%) scale(0.95);
-  }
-}
-
-/* ─── Glass surfaces ─── */
-.glass-panel {
-  background: rgba(10, 10, 20, 0.85);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid var(--border);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}
-
-.glass-card-hover:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--border-hover);
-}
-
-/* ─── Dot grid pattern background ─── */
-.dot-grid {
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    rgba(255, 255, 255, 0.04) 1px,
-    transparent 0
-  );
-  background-size: 32px 32px;
-}
-
-/* ─── Section dividers ─── */
-.section-divider {
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(124, 58, 237, 0.15),
-    rgba(6, 182, 212, 0.1),
-    transparent
-  );
-}
-
-/* ─── Badge / pill styling ─── */
-.pill-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.875rem;
-  border-radius: 9999px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  border: 1px solid rgba(124, 58, 237, 0.3);
-  background: rgba(124, 58, 237, 0.1);
-  color: var(--violet-light);
-}
-
-/* ─── Execution block button styling ─── */
-.exec-block {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-muted);
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.exec-block:hover {
-  border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-}
-
-/* ─── Category label with line ─── */
-.category-label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-
-.category-label::after {
-  content: "";
-  flex: 1;
-  height: 1px;
+  left: 0.5rem;
+  top: 0.75rem;
+  bottom: 0;
+  width: 1px;
   background: var(--border);
+}
+
+.reasoning-line-last::before {
+  height: 0;
+}
+
+.reasoning-dot {
+  position: absolute;
+  left: 0.125rem;
+  top: 0.25rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 10;
+}
+
+.reasoning-dot-active {
+  background: var(--text);
+  border-color: var(--text);
 }
 
 /* ─── Smooth scrolling ─── */
@@ -249,51 +124,6 @@ html {
 
 /* ─── Selection ─── */
 ::selection {
-  background: rgba(124, 58, 237, 0.3);
+  background: rgba(255, 255, 255, 0.2);
   color: white;
-}
-
-/* ─── Model transparency badge ─── */
-.model-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: rgba(6, 182, 212, 0.08);
-  border: 1px solid rgba(6, 182, 212, 0.15);
-  color: var(--cyan-light);
-  font-family: var(--font-mono);
-}
-
-/* ─── Animated gradient border ─── */
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-.gradient-border {
-  border: 1px solid transparent;
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  background-image:
-    linear-gradient(var(--bg-card), var(--bg-card)),
-    conic-gradient(
-      from var(--angle),
-      rgba(124, 58, 237, 0.3),
-      rgba(6, 182, 212, 0.2),
-      rgba(124, 58, 237, 0.1),
-      rgba(6, 182, 212, 0.3),
-      rgba(124, 58, 237, 0.3)
-    );
-  animation: rotate-border 6s linear infinite;
-}
-
-@keyframes rotate-border {
-  to {
-    --angle: 360deg;
-  }
 }

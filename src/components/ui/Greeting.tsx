@@ -6,13 +6,16 @@ export function Greeting() {
   return (
     <div className="flex flex-col items-center text-center">
       {/* Brand icon */}
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet to-cyan/80 shadow-[0_8px_24px_rgba(124,58,237,0.35)]">
-        <Hexagon className="h-7 w-7 text-white drop-shadow-sm" />
+      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.08] border border-white/10 shadow-sm">
+        <Hexagon className="h-8 w-8 text-white" />
       </div>
 
-      <h1 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
-        Nexora AI Workspace
+      <h1 className="font-sans text-4xl font-bold tracking-tight text-white sm:text-5xl uppercase tracking-[0.05em]">
+        Nexora
       </h1>
+      <p className="mt-4 text-text-dim text-sm font-bold uppercase tracking-widest max-w-xs">
+        System Operational • Active Node: Diwan Malla
+      </p>
     </div>
   );
 }

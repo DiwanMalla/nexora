@@ -84,14 +84,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             href="/workspace"
             className="flex items-center gap-3 overflow-hidden"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet to-cyan/80 shadow-[0_4px_12px_rgba(124,58,237,0.3)]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] border border-white/10 shadow-sm">
               <Hexagon
-                className="h-4.5 w-4.5 text-white filter drop-shadow-sm"
+                className="h-4.5 w-4.5 text-white"
                 aria-hidden
               />
             </div>
             {sidebarOpen && (
-              <span className="font-display text-lg font-bold tracking-tight text-text">
+              <span className="font-sans text-lg font-bold tracking-tight text-white">
                 Nexora
               </span>
             )}
@@ -118,15 +118,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/agents?type=aichat"
             className={cn(
-              "flex items-center gap-2.5 rounded-xl px-3 py-3 text-[14px] font-bold transition-all duration-300",
-              "bg-gradient-to-b from-violet-500 to-violet-600 text-white",
-              "border-t border-white/20 shadow-[0_4px_12px_rgba(124,58,237,0.3),inset_0_1px_rgba(255,255,255,0.1)] hover:shadow-[0_6px_16px_rgba(124,58,237,0.4)] hover:scale-[1.02] active:scale-95",
+              "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200",
+              "bg-white text-black",
+              "shadow-sm hover:bg-gray-200 active:scale-95",
               focusRing,
               !sidebarOpen && "justify-center px-0",
             )}
           >
             <Plus className="h-4 w-4 shrink-0 stroke-[2.5px]" />
-            {sidebarOpen && <span>New task</span>}
+            {sidebarOpen && <span>New chat</span>}
           </Link>
         </div>
 
@@ -136,13 +136,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             "flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition-all",
             !sidebarOpen && "justify-center px-0"
           )}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet/10 border border-violet/20">
-              <ActiveAgentIcon className="h-4 w-4 text-violet-light" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 border border-white/10">
+              <ActiveAgentIcon className="h-4 w-4 text-white" />
             </div>
             {sidebarOpen && (
               <div className="flex min-w-0 flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-text-dim">Active Agent</span>
-                <span className="truncate text-xs font-bold text-text">{activeAgentObj?.name}</span>
+                <span className="truncate text-xs font-bold text-white">{activeAgentObj?.name}</span>
               </div>
             )}
           </div>
@@ -154,15 +154,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => setModelModalOpen(true)}
             className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200 text-text-muted hover:bg-white/[0.04] hover:text-text",
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-text-muted hover:bg-white/[0.04] hover:text-white",
               focusRing,
               !sidebarOpen && "justify-center px-0"
             )}
           >
-            <Brain className="h-4.5 w-4.5 shrink-0 transition-colors group-hover:text-violet-light" />
+            <Brain className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
             {sidebarOpen && (
               <div className="flex flex-1 items-center justify-between">
-                <span>Model Preference</span>
+                <span>Model Selection</span>
                 <div className="rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-text-dim">{activeModelObj?.name.split(' ')[0]}</div>
               </div>
             )}
@@ -173,22 +173,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
                 focusRing,
                 !sidebarOpen && "justify-center px-0"
               )}
             >
-              <SparklesIcon className="h-4.5 w-4.5 shrink-0 transition-colors group-hover:text-cyan-light" />
+              <SparklesIcon className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
               {sidebarOpen && (
                 <div className="flex flex-1 items-center justify-between">
-                  <span>AI Agent</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", agentDropdownOpen && "rotate-180")} />
+                  <span>Switch Agent</span>
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", agentDropdownOpen && "rotate-180")} />
                 </div>
               )}
             </button>
             
             {agentDropdownOpen && sidebarOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#0E0E12] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#121212] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
                 {AVAILABLE_AGENTS.map((agent) => {
                   const AgentIcon = getAgentIcon(agent.id);
                   return (
@@ -199,11 +199,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                         setAgentDropdownOpen(false);
                       }}
                       className={cn(
-                        "flex w-full items-center gap-3 px-4 py-3 text-sm font-bold transition-all",
-                        selectedAgent === agent.id ? "bg-white/5 text-text" : "text-text-muted hover:bg-white/[0.02] hover:text-text"
+                        "flex w-full items-center gap-3 px-4 py-3 text-xs font-bold transition-all",
+                        selectedAgent === agent.id ? "bg-white/5 text-white" : "text-text-muted hover:bg-white/[0.02] hover:text-white"
                       )}
                     >
-                      <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-violet-light" : "text-text-dim")} />
+                      <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-white" : "text-text-dim")} />
                       {agent.name}
                     </button>
                   );
@@ -229,22 +229,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 key={href}
                 href={href}
                 className={cn(
-                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-white/[0.06] text-text shadow-[0_1px_3px_rgba(0,0,0,0.2),inset_0_1px_rgba(255,255,255,0.05)]"
-                    : "text-text-muted hover:bg-white/[0.04] hover:text-text",
+                    ? "bg-white/[0.06] text-white shadow-sm"
+                    : "text-text-muted hover:bg-white/[0.04] hover:text-white",
                   focusRing,
                   !sidebarOpen && "justify-center px-0",
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-violet to-cyan shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
+                  <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r-full bg-white shadow-sm" />
                 )}
                 <Icon
                   className={cn(
-                    "h-4.5 w-4.5 shrink-0 transition-colors",
-                    isActive ? "text-violet-light" : "group-hover:text-text",
+                    "h-4 w-4 shrink-0 transition-colors",
+                    isActive ? "text-white" : "group-hover:text-white",
                   )}
                   aria-hidden
                 />
@@ -254,28 +254,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Upgrade card (sidebar open only) */}
+        {/* System status card (sidebar open only) */}
         {sidebarOpen && (
-          <div className="mx-3.5 mb-4 rounded-xl border border-white/5 bg-[#12121A] p-4 shadow-xl">
-            <div className="flex items-center gap-2 text-sm font-bold text-text">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet/20 border border-violet/30">
-                <Zap className="h-3 w-3 text-violet-light fill-violet-light" />
-              </div>
-              Nexora Pro
+          <div className="mx-3.5 mb-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
+              <Zap className="h-3 w-3 text-white" />
+              Compute Nodes
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-text-dim">
-              Access GPT-4o, Claude 3.5, and dedicated agents.
-            </p>
-            <Link
-              href="/pricing"
-              className={cn(
-                "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/5 bg-white/5 py-2 text-[12px] font-bold text-text transition-all hover:bg-white/10",
-                focusRing,
-              )}
-            >
-              Upgrade
-              <ArrowRight className="h-3 w-3" />
-            </Link>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-bold text-text-dim uppercase tracking-widest">
+                <span>Usage</span>
+                <span>82%</span>
+              </div>
+              <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full w-[82%] bg-white" />
+              </div>
+            </div>
           </div>
         )}
 
@@ -290,7 +284,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <UserButton
               afterSignOutUrl="/"
               appearance={{
-                variables: { colorPrimary: "#7C3AED" },
+                variables: { colorPrimary: "#ffffff" },
                 elements: { avatarBox: "h-8 w-8" },
               }}
             />
@@ -298,10 +292,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {sidebarOpen && (
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-xs font-bold text-text">
-                  My Workspace
+                <span className="truncate text-[11px] font-bold text-white">
+                  {/* @ts-ignore */}
+                  Diwan Malla
                 </span>
-                <span className="truncate text-[10px] font-semibold text-text-dim">
+                <span className="truncate text-[9px] font-bold text-text-dim uppercase tracking-widest">
                   Personal Account
                 </span>
               </div>
@@ -314,7 +309,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 )}
                 aria-label="Open account settings"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -326,7 +321,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* Top bar */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[var(--bg)]/80 px-5 backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <span className="font-display text-base font-semibold text-text-muted">
+            <span className="font-sans text-[13px] font-bold text-text-muted uppercase tracking-widest">
               {pathname === "/workspace"
                 ? "Home"
                 : pathname === "/agents"
@@ -361,15 +356,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               aria-label="Notifications"
             >
               <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-violet" />
+              <span className="absolute right-2 top-2 h-1 w-1 rounded-full bg-white" />
             </button>
           </div>
         </header>
 
         {/* Content area */}
         <main className="relative flex-1 overflow-y-auto">
-          <div className="aurora-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-10 min-h-full px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+          <div className="relative z-10 min-h-full px-4 py-6 sm:px-6 lg:px-8 font-sans">{children}</div>
         </main>
       </div>
 

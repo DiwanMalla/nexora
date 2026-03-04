@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChatMessages } from "@/components/dashboard/ChatMessages";
-import { CommandBar } from "@/components/dashboard/CommandBar";
+import { ChatMessages } from "@/components/chat/ChatMessages";
+import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { AVAILABLE_MODELS } from "@/lib/constants";
+import { getCompetingModelIds } from "@/lib/settings";
 import { AIModel, ChatMessage } from "@/types";
 import {
   Bot as BotIcon,
@@ -158,16 +159,24 @@ export default function AgentsPage() {
 
     setIsLoading(true);
     try {
+      const enabledModels = getCompetingModelIds();
+      const body: {
+        model: string;
+        messages: { role: string; content: string }[];
+        enabledModels?: string[];
+      } = {
+        model: selectedModel,
+        messages: nextMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      };
+      if (enabledModels.length > 0) body.enabledModels = enabledModels;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: nextMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) throw new Error("Unable to get a response.");

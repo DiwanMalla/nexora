@@ -13,53 +13,53 @@ type StatCard = {
 
 const stats: StatCard[] = [
   {
-    label: "Messages today",
+    label: "Messages",
     value: "0",
-    subtext: "of 20 free",
+    subtext: "20 LIMIT",
     icon: MessageCircle,
-    color: "text-violet-light bg-violet/10",
+    color: "text-white bg-white/10",
   },
   {
-    label: "Agent uses",
+    label: "Agent Uses",
     value: "0",
-    subtext: "of 5 free",
+    subtext: "5 LIMIT",
     icon: Search,
-    color: "text-cyan-light bg-cyan/10",
+    color: "text-white bg-white/10",
   },
   {
     label: "Streak",
     value: "1",
-    subtext: "day",
+    subtext: "DAY",
     icon: Zap,
-    color: "text-amber-400 bg-amber-500/10",
+    color: "text-white bg-white/10",
   },
 ];
 
 export function UsageStats() {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-card)] p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-[var(--text-dim)]" />
-        <h3 className="text-base font-semibold text-white">Usage</h3>
+    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <h3 className="text-[12px] font-bold text-white uppercase tracking-widest">Compute Usage</h3>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {stats.map(({ label, value, subtext, icon: Icon, color }) => (
-          <div key={label} className="text-center">
+          <div key={label} className="text-left flex flex-col gap-2">
             <div
               className={cn(
-                "mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-lg",
+                "flex h-8 w-8 items-center justify-center rounded border border-white/5",
                 color,
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5" />
             </div>
-            <p className="font-display text-2xl font-bold text-white">
-              {value}
-            </p>
-            <p className="mt-0.5 text-[12px] font-medium text-[var(--text-dim)]">
-              {subtext}
-            </p>
-            <p className="text-[12px] text-[var(--text-dim)]">{label}</p>
+            <div>
+              <p className="text-xl font-bold text-white">
+                {value}
+              </p>
+              <p className="text-[9px] font-black text-text-dim uppercase tracking-widest">
+                {subtext}
+              </p>
+            </div>
           </div>
         ))}
       </div>

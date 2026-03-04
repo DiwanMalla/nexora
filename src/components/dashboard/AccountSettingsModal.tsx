@@ -20,6 +20,7 @@ import {
   Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AVAILABLE_MODELS } from "@/lib/constants";
 
 type AccountSettingsModalProps = {
   open: boolean;
@@ -44,6 +45,8 @@ type UserSettings = {
   profilePhoneNumber: string;
   modelOrder: string[];
   aiProviderPrefs: Record<string, AIProviderPref>;
+  /** Model IDs that compete in AI Chat; when 2+, API returns one consensus response */
+  competingModelIds: string[];
 };
 
 const STORAGE_KEY = "nexora.account.settings.v2";
@@ -177,6 +180,8 @@ const defaultProviderPref = (provider: (typeof AI_PROVIDERS)[0]): AIProviderPref
   modelId: provider.models[0]?.id ?? "",
 });
 
+const defaultCompetingModelIds = AVAILABLE_MODELS.slice(0, 2).map((m) => m.id);
+
 const defaultSettings: UserSettings = {
   tab: "general",
   theme: "system",
@@ -189,6 +194,7 @@ const defaultSettings: UserSettings = {
   aiProviderPrefs: Object.fromEntries(
     AI_PROVIDERS.map((p) => [p.id, defaultProviderPref(p)]),
   ),
+  competingModelIds: defaultCompetingModelIds,
 };
 
 function applyTheme(theme: ThemeMode) {
@@ -215,6 +221,17 @@ export function AccountSettingsModal({
   const profileName = settings.profileName;
 
   const prefs = settings.aiProviderPrefs ?? defaultSettings.aiProviderPrefs;
+
+  const toggleCompetingModel = (modelId: string) => {
+    setSettings((prev) => {
+      const ids = prev.competingModelIds ?? defaultCompetingModelIds;
+      const has = ids.includes(modelId);
+      const next = has
+        ? ids.filter((id) => id !== modelId)
+        : [...ids, modelId];
+      return { ...prev, competingModelIds: next };
+    });
+  };
 
   const setProviderPref = (providerId: string, update: Partial<AIProviderPref>) => {
     setSettings((prev) => ({
@@ -254,6 +271,9 @@ export function AccountSettingsModal({
       if (!merged.aiProviderPrefs && "modelOrder" in parsed) {
         merged.aiProviderPrefs = defaultSettings.aiProviderPrefs;
       }
+      if (!Array.isArray(merged.competingModelIds)) {
+        merged.competingModelIds = defaultSettings.competingModelIds;
+      }
       setSettings((prev) => ({ ...defaultSettings, ...prev, ...merged }));
       if (parsed.theme) applyTheme(parsed.theme);
     } catch {
@@ -282,6 +302,7 @@ export function AccountSettingsModal({
     const payload: UserSettings = {
       ...settings,
       aiProviderPrefs: prefs,
+      competingModelIds: settings.competingModelIds,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     applyTheme(settings.theme);
@@ -579,6 +600,39 @@ export function AccountSettingsModal({
                       </div>
                     );
                   })}
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="mb-1 text-sm font-semibold text-white/90">
+                    Competing models (best response)
+                  </p>
+                  <p className="mb-3 text-xs text-white/60">
+                    When multiple are selected, AI Chat runs these in parallel and combines answers into one agreed response.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {AVAILABLE_MODELS.map((m) => {
+                      const ids = settings.competingModelIds ?? defaultCompetingModelIds;
+                      const checked = ids.includes(m.id);
+                      return (
+                        <label
+                          key={m.id}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition",
+                            checked
+                              ? "border-violet-500/40 bg-violet-500/10 text-white"
+                              : "border-white/10 bg-black/20 text-white/70 hover:bg-white/5",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCompetingModel(m.id)}
+                            className="h-4 w-4 rounded border-white/20 bg-black/40 text-violet-500 focus:ring-violet-500"
+                          />
+                          <span>{m.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

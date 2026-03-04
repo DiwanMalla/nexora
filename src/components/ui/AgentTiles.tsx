@@ -32,75 +32,64 @@ const agents: AgentTile[] = [
     label: "Albert Einstein",
     description: "Deep research & creative problem solving",
     icon: Lightbulb,
-    color: "text-amber-400",
-    bg: "from-amber-500/20 to-amber-600/5",
-    badge: "Specialized",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
+    badge: "Core",
   },
   {
     href: "/search?agent=analyst",
     label: "Market Analyst",
     description: "Real-time trends & data insights",
     icon: BarChart3,
-    color: "text-cyan-400",
-    bg: "from-cyan-500/20 to-cyan-600/5",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
   },
   {
     href: "/search?agent=coder",
     label: "Fullstack Dev",
     description: "System design, debugging & execution",
     icon: Code2,
-    color: "text-emerald-400",
-    bg: "from-emerald-500/20 to-emerald-600/5",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
   },
   {
     href: "/search?agent=ui",
     label: "UI Designer",
     description: "Premium interfaces & visual components",
     icon: Monitor,
-    color: "text-fuchsia-400",
-    bg: "from-fuchsia-500/20 to-fuchsia-600/5",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
   },
   {
     href: "/search?agent=writer",
     label: "Creative Writer",
     description: "Storytelling, copy & scripts",
     icon: FileText,
-    color: "text-rose-400",
-    bg: "from-rose-500/20 to-rose-600/5",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
   },
   {
     href: "/discover",
     label: "Explore More",
     description: "50+ specialized AI agents",
     icon: Sparkles,
-    color: "text-violet-400",
-    bg: "from-violet-500/20 to-violet-600/5",
+    color: "text-white",
+    bg: "bg-white/[0.04]",
   },
 ];
 
 export function AgentTiles() {
   return (
     <section>
-      {/* Header */}
       <div className="mb-6 flex items-end justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white">
-            Explore Experts
+          <h2 className="font-sans text-[13px] font-bold tracking-[0.15em] text-white uppercase">
+            Active Experts
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Specialized agents for complex workflows
+          <p className="mt-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
+            Enterprise Compute Nodes
           </p>
         </div>
-        <Link
-          href="/discover"
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold text-slate-400 transition-colors hover:bg-white/5 hover:text-white",
-            focusRing,
-          )}
-        >
-          See all
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
       </div>
 
       {/* Horizontal scroll grid */}
@@ -110,40 +99,32 @@ export function AgentTiles() {
             key={agent.href}
             href={agent.href}
             className={cn(
-              "group relative flex flex-col items-center gap-4 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0D0D12] p-6 text-center transition-all duration-300",
-              "hover:border-white/15 hover:bg-[#121218] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)]",
+              "group relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border border-white/5 bg-white/[0.02] p-6 text-center transition-all duration-300",
+              "hover:border-white/10 hover:bg-white/[0.04]",
               focusRing,
             )}
           >
             {/* Badge */}
             {agent.badge && (
-              <span className="absolute right-3 top-3 rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-400">
+              <span className="absolute right-3 top-3 rounded bg-white text-black px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest">
                 {agent.badge}
               </span>
             )}
 
-            {/* Gradient glow */}
-            <div
-              className={cn(
-                "absolute inset-0 bg-gradient-to-b opacity-0 transition-opacity duration-300 group-hover:opacity-100",
-                agent.bg,
-              )}
-            />
-
             {/* Icon */}
             <div
               className={cn(
-                "relative flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] transition-transform duration-300 group-hover:scale-110",
-                agent.color,
+                "relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-white/[0.02] transition-transform duration-300 group-hover:scale-105",
+                "text-white",
               )}
             >
-              <agent.icon className="h-5 w-5" />
+              <agent.icon className="h-4 w-4" />
             </div>
 
             {/* Text */}
             <div className="relative">
-              <h3 className="text-sm font-bold text-white">{agent.label}</h3>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500 group-hover:text-slate-400">
+              <h3 className="text-[12px] font-bold text-white uppercase tracking-wider">{agent.label}</h3>
+              <p className="mt-1 text-[10px] leading-snug text-text-dim group-hover:text-white transition-colors uppercase tracking-tight">
                 {agent.description}
               </p>
             </div>

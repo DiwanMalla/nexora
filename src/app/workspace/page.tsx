@@ -1,15 +1,16 @@
 "use client";
 import { useState } from "react";
-import { Greeting } from "@/components/dashboard/Greeting";
-import { CommandBar } from "@/components/dashboard/CommandBar";
+import { Greeting } from "@/components/ui/Greeting";
+import { CommandBar } from "@/components/chat/CommandBar";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { AgentTiles } from "@/components/dashboard/AgentTiles";
+import { AgentTiles } from "@/components/ui/AgentTiles";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { AVAILABLE_MODELS } from "@/lib/constants";
+import { getCompetingModelIds } from "@/lib/settings";
 import { ChatMessage } from "@/types";
-import { ChatMessages } from "@/components/dashboard/ChatMessages";
+import { ChatMessages } from "@/components/chat/ChatMessages";
 import { Brain, Sparkles, MessageSquare, ArrowLeft, Bot as BotIcon } from "lucide-react";
 
 export default function WorkspacePage() {
@@ -56,16 +57,24 @@ export default function WorkspacePage() {
 
     setIsLoading(true);
     try {
+      const enabledModels = getCompetingModelIds();
+      const body: {
+        model: string;
+        messages: { role: string; content: string }[];
+        enabledModels?: string[];
+      } = {
+        model: selectedModel,
+        messages: nextMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+      };
+      if (enabledModels.length > 0) body.enabledModels = enabledModels;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: nextMessages.map((message) => ({
-            role: message.role,
-            content: message.content,
-          })),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
