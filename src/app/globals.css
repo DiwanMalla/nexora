@@ -56,8 +56,6 @@ body {
 /* Focus ring for accessibility */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--border);
-  border-radius: 4px;
 }
 
 /* Simple, clear typography */

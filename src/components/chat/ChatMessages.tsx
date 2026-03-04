@@ -120,16 +120,6 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
         </div>
       )}
 
-      {/* Upgrade Banner */}
-      <div className="mt-8 flex items-center justify-between rounded-2xl border border-white/5 bg-[#161616]/50 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <BotIcon className="h-4 w-4 text-text-dim" />
-          <p className="text-[12px] font-medium text-text-dim">Upgrade to keep chats flowing without limits.</p>
-        </div>
-        <button className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-bold text-white uppercase tracking-widest hover:bg-white/10 transition-all">
-          Upgrade to Pro
-        </button>
-      </div>
     </div>
   );
 }

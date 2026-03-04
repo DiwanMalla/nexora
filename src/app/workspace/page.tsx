@@ -182,8 +182,8 @@ export default function WorkspacePage() {
 
           <ChatMessages messages={messages} isLoading={isLoading} />
 
-          {/* Sticky input area */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-gradient-to-t from-[#050505] via-[#050505]/95 to-transparent pb-10 pt-20 lg:pl-64">
+          {/* Command bar */}
+          <div className="mt-8 flex justify-center lg:pl-0">
             <div className="w-full max-w-3xl px-6">
               <CommandBar
                 input={input}

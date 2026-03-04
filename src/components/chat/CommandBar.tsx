@@ -8,8 +8,10 @@ import {
   Globe,
   Cpu,
   CornerDownLeft,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 
 export interface CommandBarProps {
   input?: string;
@@ -33,6 +35,7 @@ export function CommandBar({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [internalValue, setInternalValue] = useState("");
 
+  const { isMultiChat, setIsMultiChat } = useWorkspace();
   const value = externalInput !== undefined ? externalInput : internalValue;
 
   const handleInternalChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -58,8 +61,21 @@ export function CommandBar({
 
   return (
     <div className={cn("mx-auto w-full max-w-3xl", compact ? "px-0" : "px-4")}>
-      <form onSubmit={handleSubmit} className="relative">
-        <div className="flex flex-col gap-0 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#141414]/90 shadow-2xl backdrop-blur-md focus-within:border-white/20 transition-all">
+      <form onSubmit={handleSubmit} className="relative flex flex-col gap-3">
+        <div className="flex flex-col gap-0 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#141414]/90 shadow-2xl backdrop-blur-md">
+          {/* Internal Upgrade Banner */}
+          <div className="flex items-center justify-between border-b border-white/5 bg-white/5 px-5 py-2.5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-white/5 border border-white/10">
+                <ArrowUp className="h-2.5 w-2.5 text-white rotate-45" />
+              </div>
+              <p className="text-[9px] font-bold text-text-dim uppercase tracking-widest leading-none">Upgrade to keep chats flowing without limits.</p>
+            </div>
+            <button className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[8px] font-black text-white uppercase tracking-widest hover:bg-white/10 transition-all focus:outline-none focus:ring-0">
+              Upgrade to Pro
+            </button>
+          </div>
+
           {/* Top Label */}
           <div className="flex items-center gap-2 px-4 pt-3 pb-1">
             <div className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 border border-white/5">
@@ -75,7 +91,7 @@ export function CommandBar({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={externalPlaceholder || "Message Nexora..."}
-            className="w-full resize-none bg-transparent px-5 py-3 text-[14px] font-normal leading-relaxed text-white placeholder:text-text-dim focus:outline-none"
+            className="w-full resize-none bg-transparent px-5 py-3 text-[14px] font-normal leading-relaxed text-white placeholder:text-text-dim outline-none focus:outline-none focus:ring-0 focus:border-none ring-0 shadow-none border-none"
             style={{ minHeight: "60px", maxHeight: "200px" }}
           />
 
@@ -84,24 +100,37 @@ export function CommandBar({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all focus:outline-none focus:ring-0"
                 title="Attach"
               >
                 <Paperclip className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all focus:outline-none focus:ring-0"
                 title="Search Global"
               >
                 <Globe className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMultiChat(!isMultiChat)}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg transition-all focus:outline-none focus:ring-0",
+                  isMultiChat 
+                    ? "bg-white/10 text-white" 
+                    : "text-text-dim hover:bg-white/10 hover:text-white"
+                )}
+                title="Multi-Chat"
+              >
+                <Layers className="h-4 w-4" />
               </button>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-dim hover:bg-white/10 hover:text-white transition-all focus:outline-none focus:ring-0"
                 title="Voice"
               >
                 <Mic className="h-4 w-4" />
@@ -110,7 +139,7 @@ export function CommandBar({
                 type="submit"
                 disabled={!value.trim()}
                 className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full transition-all",
+                  "flex h-8 w-8 items-center justify-center rounded-full transition-all focus:outline-none focus:ring-0",
                   value.trim() 
                     ? "bg-white text-black hover:scale-105" 
                     : "bg-white/5 text-gray-700 cursor-not-allowed"
@@ -122,7 +151,7 @@ export function CommandBar({
           </div>
         </div>
         
-        <div className="mt-3 flex items-center justify-center gap-4 text-[10px] font-bold text-text-dim uppercase tracking-widest opacity-80">
+        <div className="mt-2 flex items-center justify-center gap-4 text-[10px] font-bold text-text-dim uppercase tracking-widest opacity-80">
           <span>By using Nexora, you agree to our Terms & Privacy</span>
         </div>
       </form>
