@@ -318,48 +318,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       {/* ─── Main area ─── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[var(--bg)]/80 px-5 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            <span className="font-sans text-[13px] font-bold text-text-muted uppercase tracking-widest">
-              {pathname === "/workspace"
-                ? "Home"
-                : pathname === "/agents"
-                  ? "AI Chat"
-                  : pathname === "/inbox"
-                    ? "AI Inbox"
-                    : pathname === "/drive"
-                      ? "AI Drive"
-                      : pathname === "/discover"
-                        ? "Discover"
-                        : "Workspace"}
-            </span>
-          </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className={cn(
-                "rounded-lg p-2 text-text-muted transition hover:bg-white/5 hover:text-text",
-                focusRing,
-              )}
-              aria-label="Search"
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "relative rounded-lg p-2 text-text-muted transition hover:bg-white/5 hover:text-text",
-                focusRing,
-              )}
-              aria-label="Notifications"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute right-2 top-2 h-1 w-1 rounded-full bg-white" />
-            </button>
-          </div>
-        </header>
 
         {/* Content area */}
         <main className="relative flex-1 overflow-y-auto">

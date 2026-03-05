@@ -23,6 +23,7 @@ export interface CommandBarProps {
   onSubmit?: (e: React.FormEvent) => void;
   placeholder?: string;
   compact?: boolean;
+  showModelSelector?: boolean;
 }
 
 export function CommandBar({

@@ -3,28 +3,55 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { 
-  Bot as BotIcon, 
   Copy, 
   ThumbsUp, 
   ThumbsDown, 
   Download, 
-  ChevronDown,
+  Hexagon,
+  Search,
+  Globe,
+  Database,
+  ShieldCheck,
   CheckCircle2,
-  Hexagon
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage } from "@/types";
+import { useEffect, useState } from "react";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  agentId?: string;
 }
 
-export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+const RESEARCH_STEPS = [
+  { id: 'query', label: "Query Analysis", sub: "Understanding search intent...", icon: Search },
+  { id: 'search', label: "Web Search", sub: "Searching for answers...", icon: Globe },
+  { id: 'analysis', label: "Deep Analysis", sub: "Analyzing top results...", icon: Database },
+  { id: 'fact-check', label: "Fact Checking", sub: "Verifying information...", icon: ShieldCheck },
+  { id: 'synthesize', label: "Researcher", sub: "Synthesizing findings...", icon: Hexagon },
+];
+
+export function ChatMessages({ messages, isLoading, agentId }: ChatMessagesProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setCurrentStep((prev) => (prev < RESEARCH_STEPS.length - 1 ? prev + 1 : prev));
+      }, 2500);
+      return () => {
+        clearInterval(interval);
+        setCurrentStep(0);
+      };
+    }
+  }, [isLoading]);
+
   if (messages.length === 0) return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-12 pb-60">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
       {messages.map((m, idx) => (
         <div
           key={m.id}
@@ -51,31 +78,6 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                 </div>
                 <span className="text-[13px] font-bold text-white tracking-tight">Nexora</span>
               </div>
-
-              {/* Reasoning Mockup (only for assistant messages) */}
-              {idx === messages.length - 1 && !isLoading && (
-                <div className="flex flex-col gap-4 pl-4 border-l border-white/5 ml-4 pb-2">
-                   <div className="flex items-center gap-3 text-[11px] font-bold text-text-dim uppercase tracking-widest">
-                      <span>Reasoning</span>
-                      <ChevronDown className="h-3 w-3" />
-                   </div>
-                   <div className="space-y-4">
-                      {[
-                        { label: "Context Analysis", sub: "Analyzing conversation context..." },
-                        { label: "Intent Recognition", sub: "Understanding user intent..." },
-                        { label: "Expert Response", sub: "Formulating technical answer..." }
-                      ].map((step, i) => (
-                        <div key={i} className="flex gap-4">
-                          <CheckCircle2 className="h-4 w-4 text-text-dim mt-0.5" />
-                          <div className="flex flex-col">
-                            <span className="text-[11px] font-bold text-white uppercase tracking-wider">{step.label}</span>
-                            <span className="text-[11px] text-text-dim">{step.sub}</span>
-                          </div>
-                        </div>
-                      ))}
-                   </div>
-                </div>
-              )}
 
               {/* Message Content */}
               <div className="prose prose-invert max-w-none text-[15px] leading-relaxed text-gray-200 pl-11">
@@ -105,21 +107,53 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
       ))}
 
       {isLoading && (
-        <div className="flex flex-col gap-6 animate-pulse">
+        <div className="flex flex-col gap-8 animate-in fade-in duration-500">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10">
-              <Hexagon className="h-4 w-4 text-white/50" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 shadow-lg animate-pulse">
+              <Hexagon className="h-4 w-4 text-white" />
             </div>
-            <span className="text-[13px] font-bold text-white/50 tracking-tight tracking-widest uppercase">Thinking...</span>
+            <span className="text-[14px] font-black text-white tracking-[0.2em] uppercase">Nexora Search</span>
           </div>
-          <div className="space-y-3 pl-11">
-            <div className="h-3 w-full rounded bg-white/5" />
-            <div className="h-3 w-5/6 rounded bg-white/5" />
-            <div className="h-3 w-4/6 rounded bg-white/5" />
+          
+          <div className="flex flex-col gap-5 pl-4 border-l border-white/5 ml-4">
+             {RESEARCH_STEPS.map((step, i) => {
+               const Icon = step.icon;
+               const isCompleted = i < currentStep;
+               const isActive = i === currentStep;
+               const isPending = i > currentStep;
+
+               return (
+                 <div key={step.id} className={cn(
+                   "flex items-start gap-4 transition-all duration-500",
+                   isPending ? "opacity-20 grayscale" : "opacity-100"
+                 )}>
+                   <div className={cn(
+                     "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-500",
+                     isCompleted ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" :
+                     isActive ? "border-white/20 bg-white/5 text-white animate-pulse" :
+                     "border-white/5 text-text-dim"
+                   )}>
+                     {isCompleted ? <CheckCircle2 className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+                   </div>
+                   <div className="flex flex-col gap-0.5">
+                     <span className={cn(
+                       "text-[11px] font-bold uppercase tracking-wider transition-colors",
+                       isActive ? "text-white" : "text-text-muted"
+                     )}>
+                       {step.label}
+                     </span>
+                     {isActive && (
+                       <span className="text-[11px] text-text-dim animate-in fade-in slide-in-from-left-2 duration-700">
+                         {step.sub}
+                       </span>
+                     )}
+                   </div>
+                 </div>
+               );
+             })}
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -78,42 +78,7 @@ body {
   .text-dim { color: var(--text-dim); }
 }
 
-/* ─── Reasoning lines ─── */
-.reasoning-line {
-  position: relative;
-  padding-left: 2rem;
-}
 
-.reasoning-line::before {
-  content: "";
-  position: absolute;
-  left: 0.5rem;
-  top: 0.75rem;
-  bottom: 0;
-  width: 1px;
-  background: var(--border);
-}
-
-.reasoning-line-last::before {
-  height: 0;
-}
-
-.reasoning-dot {
-  position: absolute;
-  left: 0.125rem;
-  top: 0.25rem;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  z-index: 10;
-}
-
-.reasoning-dot-active {
-  background: var(--text);
-  border-color: var(--text);
-}
 
 /* ─── Smooth scrolling ─── */
 html {

@@ -14,7 +14,7 @@ import { ChatMessages } from "@/components/chat/ChatMessages";
 import { Brain, Sparkles, MessageSquare, ArrowLeft, Bot as BotIcon } from "lucide-react";
 
 export default function WorkspacePage() {
-  const { isMultiChat, selectedModel } = useWorkspace();
+  const { isMultiChat, selectedModel, selectedAgent } = useWorkspace();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -120,14 +120,6 @@ export default function WorkspacePage() {
           </p>
         </div>
 
-        <div className="w-full">
-          <CommandBar
-            input={input}
-            handleInputChange={handleInputChange}
-            onSubmit={handleSubmit}
-          />
-        </div>
-
         <div className="mt-16 grid w-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {AVAILABLE_MODELS.map((model) => (
             <div
@@ -157,34 +149,32 @@ export default function WorkspacePage() {
             </div>
           ))}
         </div>
+
+        {/* Command bar at bottom */}
+        <div className="sticky bottom-0 z-20 mt-auto bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent pt-12 pb-10 -mx-6 sm:-mx-10 lg:-mx-16 px-6 sm:px-10 lg:px-16 flex justify-center">
+          <div className="w-full max-w-3xl">
+            <CommandBar
+              input={input}
+              handleInputChange={handleInputChange}
+              onSubmit={handleSubmit}
+            />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative mx-auto flex h-full w-full max-w-5xl flex-col px-6 sm:px-10 lg:px-16">
+    <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-6 sm:px-10 lg:px-16">
       {isChatting ? (
         <div className="flex flex-1 flex-col py-10 animate-in fade-in duration-500">
-          <div className="mb-6 flex items-center justify-between">
-            <button
-              onClick={() => setMessages([])}
-              className="group flex items-center gap-2.5 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-2 text-xs font-bold uppercase tracking-widest text-text-muted transition-all hover:bg-white/10 hover:text-text"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
-              New session
-            </button>
-            
-            <div className="flex items-center gap-2 rounded-full border border-violet/20 bg-violet/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-violet-light">
-              <Sparkles className="h-3 w-3" />
-              Conversation Active
-            </div>
-          </div>
 
-          <ChatMessages messages={messages} isLoading={isLoading} />
 
-          {/* Command bar */}
-          <div className="mt-8 flex justify-center lg:pl-0">
-            <div className="w-full max-w-3xl px-6">
+          <ChatMessages messages={messages} isLoading={isLoading} agentId={selectedAgent} />
+
+          {/* Command bar - Fixed at bottom */}
+          <div className="sticky bottom-0 z-20 mt-auto bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/95 to-transparent pt-12 pb-10 -mx-6 sm:-mx-10 lg:-mx-16 px-6 sm:px-10 lg:px-16 flex justify-center">
+            <div className="w-full max-w-4xl">
               <CommandBar
                 input={input}
                 handleInputChange={handleInputChange}
@@ -205,7 +195,7 @@ export default function WorkspacePage() {
             </h1>
           </div>
 
-          <div className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
+          <div className="w-full max-w-4xl animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
             <CommandBar
               input={input}
               handleInputChange={handleInputChange}

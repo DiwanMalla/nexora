@@ -365,7 +365,7 @@ export default function AgentsPage() {
             >
               New Chat
             </button>
-            <ChatMessages messages={messages} isLoading={isLoading} />
+            <ChatMessages messages={messages} isLoading={isLoading} agentId={type || 'aichat'} />
           </div>
           <div className="shrink-0 border-t border-white/[0.06] bg-[var(--bg)]/95 px-4 py-4 backdrop-blur-sm lg:pl-4">
             <div className="mx-auto max-w-3xl">
