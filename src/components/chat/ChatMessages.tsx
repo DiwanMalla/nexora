@@ -66,10 +66,10 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
     >
       {m.role === "user" ? (
         <div className="flex items-center gap-3">
-          <div className="max-w-[80%] rounded-2xl bg-[#1A1A1A] border border-white/5 px-4 py-2 text-sm text-gray-200">
+          <div className="max-w-[80%] rounded-2xl bg-[#1A1A1A] border border-white/5 px-4 py-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-[var(--text)]">
             {m.content}
           </div>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black text-[11px] font-bold shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black text-[var(--text-xs)] font-semibold shadow-sm">
             DM
           </div>
         </div>
@@ -79,9 +79,9 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 shadow-sm">
               <Hexagon className="h-4 w-4 text-white" />
             </div>
-            <span className="text-[13px] font-bold text-white tracking-tight">Nexora</span>
+            <span className="text-[var(--text-base)] font-semibold text-white tracking-tight">Nexora</span>
           </div>
-          <div className="prose prose-invert max-w-none text-[15px] leading-relaxed text-gray-200 pl-11">
+          <div className="typography-prose max-w-none pl-11">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {m.content}
             </ReactMarkdown>
@@ -114,7 +114,7 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 shadow-lg animate-pulse">
               <Hexagon className="h-4 w-4 text-white" />
             </div>
-            <span className="text-[14px] font-black text-white tracking-[0.2em] uppercase">Nexora Search</span>
+            <span className="text-[var(--text-base)] font-bold text-white tracking-[0.2em] uppercase">Nexora Search</span>
           </div>
           <div className="flex flex-col gap-5 pl-4 border-l border-white/5 ml-4">
             {researchSteps.map((step, i) => {
@@ -137,13 +137,13 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className={cn(
-                      "text-[11px] font-bold uppercase tracking-wider transition-colors",
+                      "text-[var(--text-sm)] font-semibold uppercase tracking-wide transition-colors",
                       isActive ? "text-white" : "text-text-muted"
                     )}>
                       {step.label}
                     </span>
                     {isActive && (
-                      <span className="text-[11px] text-text-dim animate-in fade-in slide-in-from-left-2 duration-700">
+                      <span className="text-[var(--text-sm)] text-text-dim animate-in fade-in slide-in-from-left-2 duration-700">
                         {step.sub}
                       </span>
                     )}

@@ -26,6 +26,8 @@ export interface CommandBarProps {
   placeholder?: string;
   compact?: boolean;
   showModelSelector?: boolean;
+  /** Use a wider max-width (e.g. for centered multi-chat empty state) */
+  wide?: boolean;
 }
 
 export function CommandBar({
@@ -35,6 +37,7 @@ export function CommandBar({
   placeholder: externalPlaceholder,
   showModelSelector = true,
   compact = false,
+  wide = false,
 }: CommandBarProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [internalValue, setInternalValue] = useState("");
@@ -74,7 +77,7 @@ export function CommandBar({
   };
 
   return (
-    <div className={cn("mx-auto w-full max-w-3xl", compact ? "px-0" : "px-4")}>
+    <div className={cn("mx-auto w-full", wide ? "max-w-5xl" : "max-w-3xl", compact ? "px-0" : "px-4")}>
       <form onSubmit={handleSubmit} className={cn("relative flex flex-col", compact ? "gap-1" : "gap-3")}>
         <div className={cn("flex flex-col gap-0 overflow-hidden border border-white/10 bg-[#141414]/90 shadow-2xl backdrop-blur-md", compact ? "rounded-xl" : "rounded-[1.25rem]")}>
           {/* Internal Upgrade Banner - hidden in compact (agent) view */}
@@ -84,11 +87,11 @@ export function CommandBar({
               <div className="flex h-5 w-5 items-center justify-center rounded-md bg-white/5 border border-white/10">
                 <ArrowUp className="h-2.5 w-2.5 text-white rotate-45" />
               </div>
-              <p className="text-[9px] font-bold text-text-dim uppercase tracking-widest leading-none">
+              <p className="text-[var(--text-xs)] font-semibold text-text-dim uppercase tracking-wide leading-snug">
                 Upgrade to keep chats flowing without limits.
               </p>
             </div>
-            <button className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[8px] font-black text-white uppercase tracking-widest hover:bg-white/10 transition-all focus:outline-none focus:ring-0">
+            <button className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[var(--text-xs)] font-bold text-white uppercase tracking-wide hover:bg-white/10 transition-all focus:outline-none focus:ring-0">
               Upgrade to Pro
             </button>
           </div>
@@ -105,7 +108,7 @@ export function CommandBar({
                     className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 border border-white/5 hover:bg-white/10 transition-colors"
                   >
                     <Cpu className="h-3 w-3 text-violet-400" />
-                    <span className="text-[10px] font-bold text-white">
+                    <span className="text-[var(--text-xs)] font-semibold text-white">
                       {AVAILABLE_MODELS.find((m) => m.id === selectedModel)
                         ?.name || "Select Model"}
                     </span>
@@ -128,7 +131,7 @@ export function CommandBar({
                               setModelDropdownOpen(false);
                             }}
                             className={cn(
-                              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] font-semibold transition-colors",
+                              "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[var(--text-sm)] font-medium transition-colors",
                               m.id === selectedModel
                                 ? "bg-white/10 text-white"
                                 : "text-text-muted hover:bg-white/[0.04] hover:text-white",
@@ -144,7 +147,7 @@ export function CommandBar({
               ) : (
                 <div className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 border border-white/5">
                   <Cpu className="h-3 w-3 text-text-dim" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-text-dim">
+                  <span className="text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-dim">
                     Agentic
                   </span>
                 </div>
@@ -159,7 +162,7 @@ export function CommandBar({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={externalPlaceholder || "Message Nexora..."}
-            className={cn("w-full resize-none bg-transparent text-[14px] font-normal leading-relaxed text-white placeholder:text-text-dim outline-none focus:outline-none focus:ring-0 focus:border-none ring-0 shadow-none border-none", compact ? "px-4 py-2" : "px-5 py-3")}
+            className={cn("w-full resize-none bg-transparent text-[var(--text-base)] font-normal leading-[var(--leading-relaxed)] text-white placeholder:text-text-dim outline-none focus:outline-none focus:ring-0 focus:border-none ring-0 shadow-none border-none", compact ? "px-4 py-2" : "px-5 py-3")}
             style={{ minHeight: compact ? "40px" : "60px", maxHeight: "200px" }}
           />
 
@@ -222,7 +225,7 @@ export function CommandBar({
         </div>
 
         {!compact && (
-        <div className="mt-2 flex items-center justify-center gap-4 text-[10px] font-bold text-text-dim uppercase tracking-widest opacity-80">
+        <div className="mt-2 flex items-center justify-center gap-4 text-[var(--text-xs)] font-semibold text-text-dim uppercase tracking-wide opacity-80">
           <span>By using Nexora, you agree to our Terms & Privacy</span>
         </div>
         )}

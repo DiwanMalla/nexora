@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import {
   PanelLeftClose,
   PanelLeft,
@@ -47,12 +47,22 @@ const focusRing =
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
-  
+
+  const displayName =
+    user?.fullName?.trim() ||
+    (user?.firstName || user?.lastName
+      ? [user.firstName, user.lastName].filter(Boolean).join(" ")
+      : null) ||
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.username ||
+    "Account";
+
   const { selectedModel, selectedAgent, setSelectedAgent } = useWorkspace();
   
   const activeModelObj = AVAILABLE_MODELS.find(m => m.id === selectedModel);
@@ -346,8 +356,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-[11px] font-bold text-white">
-                  {/* @ts-ignore */}
-                  Diwan Malla
+                  {displayName}
                 </span>
                 <span className="truncate text-[9px] font-bold text-text-dim uppercase tracking-widest">
                   Personal Account

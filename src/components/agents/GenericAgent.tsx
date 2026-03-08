@@ -7,6 +7,7 @@ import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { AVAILABLE_MODELS } from "@/lib/constants";
 import { getCompetingModelIds } from "@/lib/settings";
+import { randomUUID } from "@/lib/utils";
 import { AIModel, ChatMessage } from "@/types";
 import {
   Bot as BotIcon,
@@ -114,7 +115,7 @@ export function GenericAgent() {
     setInput("");
 
     if (!idFromUrl) {
-      const newId = crypto.randomUUID();
+      const newId = randomUUID();
       updateUrl(newId);
     }
 
@@ -247,11 +248,14 @@ export function GenericAgent() {
     if (messages.length > prevMessagesLengthRef.current) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg?.role === "user") {
-        lastMessageRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+        lastMessageRef.current?.scrollIntoView({
+          block: "start",
+          behavior: "smooth",
+        });
       }
     }
     prevMessagesLengthRef.current = messages.length;
-  }, [messages.length, messages]);
+  }, [messages]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -265,10 +269,17 @@ export function GenericAgent() {
   );
 
   if (showMultiColumns) {
+    const multiHasMessages = multiRounds.length > 0;
+
     return (
       <div className="flex h-full flex-col">
-        <div className="flex flex-1 flex-col min-h-0">
-          <div className="flex-1 overflow-x-auto overflow-y-auto px-4 py-4 pb-32">
+        <div className="relative flex flex-1 flex-col min-h-0">
+          <div
+            className={cn(
+              "flex-1 overflow-x-auto overflow-y-auto px-4 py-4",
+              multiHasMessages ? "pb-32" : "pb-4",
+            )}
+          >
             <div className="flex h-full pb-6">
               {AVAILABLE_MODELS.map((model, index) => {
                 const enabled = columnEnabled[model.id] !== false;
@@ -283,7 +294,8 @@ export function GenericAgent() {
                         aria-hidden
                       />
                     )}
-                      <div className={cn(
+                    <div
+                      className={cn(
                         "flex flex-col transition-all duration-300 ease-in-out",
                         enabled
                           ? "w-[min(420px,85vw)] min-w-[min(420px,85vw)] max-w-[min(420px,85vw)]"
@@ -294,31 +306,39 @@ export function GenericAgent() {
                       }}
                     >
                       {/* Column header */}
-                      <div className={cn(
-                        "flex items-center gap-3 border-b border-transparent px-4 py-4 min-h-[64px]",
-                        !enabled && "flex-col justify-center px-0 py-0 h-[64px] gap-1.5"
-                      )}>
+                      <div
+                        className={cn(
+                          "flex items-center gap-3 border-b border-transparent px-4 py-4 min-h-[64px]",
+                          !enabled &&
+                            "flex-col justify-center px-0 py-0 h-[64px] gap-1.5",
+                        )}
+                      >
                         {enabled ? (
                           <>
                             <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] transition-colors cursor-pointer px-3 py-1.5">
                               <MessageSquare className="h-4 w-4 shrink-0 text-white" />
-                              <span className="truncate text-[13px] font-medium text-white">{model.name}</span>
+                              <span className="truncate text-[13px] font-medium text-white">
+                                {model.name}
+                              </span>
                               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-muted" />
                             </div>
-                            
+
                             <div className="flex-1" />
 
                             <button className="text-text-muted hover:text-white transition-colors">
                               <ExternalLink className="h-[15px] w-[15px]" />
                             </button>
-                            
+
                             <label className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center">
                               <input
                                 type="checkbox"
                                 className="peer sr-only"
                                 checked={enabled}
                                 onChange={(e) =>
-                                  setColumnEnabledById(model.id, e.target.checked)
+                                  setColumnEnabledById(
+                                    model.id,
+                                    e.target.checked,
+                                  )
                                 }
                               />
                               <div className="peer h-5 w-9 rounded-full bg-white/10 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#20A05A] peer-focus:outline-none dark:border-gray-600 peer-checked:after:translate-x-full"></div>
@@ -344,7 +364,10 @@ export function GenericAgent() {
                               (r) => r.model.id === model.id,
                             );
                             return (
-                              <div key={roundIdx} className="flex flex-col gap-3">
+                              <div
+                                key={roundIdx}
+                                className="flex flex-col gap-3"
+                              >
                                 <div className="flex justify-end">
                                   <div className="max-w-[95%] rounded-2xl bg-[#2F2F2F] px-4 py-2.5 text-sm text-text">
                                     {round.user}
@@ -359,7 +382,9 @@ export function GenericAgent() {
                                         <span className="h-2 w-2 animate-bounce rounded-full bg-violet-400" />
                                       </div>
                                     ) : (
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                      >
                                         {resp?.content ?? "—"}
                                       </ReactMarkdown>
                                     )}
@@ -411,22 +436,46 @@ export function GenericAgent() {
               })}
             </div>
           </div>
-          {/* Bottom: fixed command bar */}
-          <div
-            className="fixed bottom-0 left-[var(--sidebar-width)] right-0 z-30 bg-[var(--bg)]/95 px-4 py-2 backdrop-blur-md"
-            style={{ left: "var(--sidebar-width, 15rem)" }}
-          >
-            <div className="mx-auto max-w-4xl">
-              <CommandBar
-                input={input}
-                handleInputChange={handleInputChange}
-                onSubmit={handleSubmit}
-                placeholder="Ask me anything..."
-                showModelSelector
-                compact
-              />
+          {/* Command bar: centered when empty, fixed at bottom when user has sent messages */}
+          {multiHasMessages ? (
+            <div
+              className="fixed bottom-0 left-[var(--sidebar-width)] right-0 z-30 bg-[var(--bg)]/95 px-4 py-2 backdrop-blur-md"
+              style={{ left: "var(--sidebar-width, 15rem)" }}
+            >
+              <div className="mx-auto max-w-4xl">
+                <CommandBar
+                  input={input}
+                  handleInputChange={handleInputChange}
+                  onSubmit={handleSubmit}
+                  placeholder="Ask me anything..."
+                  showModelSelector
+                  compact
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className="fixed z-30 flex  left-[var(--sidebar-width)] right-0 bg-[var(--bg)]/95 px-4 py-2 backdrop-blur-md"
+              style={{
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                marginLeft: "calc(var(--sidebar-width, 15rem) / 2)",
+              }}
+            >
+              <div className="mx-auto w-full max-w-5xl">
+                <CommandBar
+                  input={input}
+                  handleInputChange={handleInputChange}
+                  onSubmit={handleSubmit}
+                  placeholder="Ask me anything..."
+                  showModelSelector
+                  compact
+                  wide
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -436,7 +485,10 @@ export function GenericAgent() {
     <div className="flex h-full flex-col">
       {isChatting ? (
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-4 py-6 pb-32">
+          <div
+            ref={chatScrollRef}
+            className="flex-1 overflow-y-auto px-4 py-6 pb-32"
+          >
             <ChatMessages
               messages={messages}
               isLoading={isLoading}
@@ -465,10 +517,12 @@ export function GenericAgent() {
           <div className="mb-10 flex h-16 w-16 items-center justify-center rounded-2xl border border-violet/20 bg-violet/5">
             <BotIcon className="h-8 w-8 text-violet-400" />
           </div>
-          <h1 className="text-3xl font-bold text-text sm:text-4xl">
+          <h1 className="font-display text-[var(--text-3xl)] font-bold tracking-tight text-text sm:text-[var(--text-4xl)]">
             {agentLabel}
           </h1>
-          <p className="mt-2 text-text-muted">Ask anything, create anything.</p>
+          <p className="mt-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text-muted">
+            Ask anything, create anything.
+          </p>
           <div className="mt-10 w-full max-w-2xl">
             <CommandBar
               input={input}

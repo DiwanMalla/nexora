@@ -52,8 +52,8 @@ export default function WorkspacePage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet/20 border border-violet/30 shadow-lg">
             <Brain className="h-8 w-8 text-violet-light" />
           </div>
-          <h1 className="text-4xl font-bold text-text">Multi-Chat Mode</h1>
-          <p className="mt-2 text-text-muted">
+          <h1 className="font-display text-[var(--text-3xl)] font-bold tracking-tight text-text sm:text-[var(--text-4xl)]">Multi-Chat Mode</h1>
+          <p className="mt-4 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text-muted">
             Compare responses from all selected models simultaneously.
           </p>
         </div>
@@ -69,7 +69,7 @@ export default function WorkspacePage() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-text-muted">
                     <MessageSquare className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-bold text-text">
+                  <span className="text-[var(--text-base)] font-semibold text-text">
                     {model.name}
                   </span>
                 </div>
@@ -80,7 +80,7 @@ export default function WorkspacePage() {
                 <div className="h-3 w-1/2 rounded-full bg-white/5" />
                 <div className="h-3 w-2/3 rounded-full bg-white/5" />
               </div>
-              <div className="mt-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-text-dim">
+              <div className="mt-6 flex items-center gap-2 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-dim">
                 <Sparkles className="h-3 w-3" />
                 {model.provider}
               </div>
@@ -130,7 +130,7 @@ export default function WorkspacePage() {
             <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-violet/20 bg-violet/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.05)]">
               <BotIcon className="h-10 w-10 text-violet-light" />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-text sm:text-5xl">
+            <h1 className="font-display text-[var(--text-4xl)] font-bold tracking-tight text-text sm:text-[var(--text-5xl)]">
               What can I help with?
             </h1>
           </div>
@@ -150,10 +150,10 @@ export default function WorkspacePage() {
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet-light">
                 <Brain className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
                 Expert Agents
               </h3>
-              <p className="text-xs leading-relaxed text-text-muted font-medium">
+              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
                 Switch between Researcher, Developer, or Analyst for specialized
                 workflows.
               </p>
@@ -162,10 +162,10 @@ export default function WorkspacePage() {
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
                 <MessageSquare className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
                 Multi-Chat
               </h3>
-              <p className="text-xs leading-relaxed text-text-muted font-medium">
+              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
                 Enable Multi-Chat to compare outputs from Llama 3, GPT-4, and
                 Gemini side-by-side.
               </p>
@@ -174,10 +174,10 @@ export default function WorkspacePage() {
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
                 <Sparkles className="h-5 w-5" />
               </div>
-              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
                 Smart Search
               </h3>
-              <p className="text-xs leading-relaxed text-text-muted font-medium">
+              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
                 Use AI Agent mode for deep research and real-time knowledge
                 discovery.
               </p>
