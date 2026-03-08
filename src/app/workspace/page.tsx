@@ -11,7 +11,13 @@ import { AVAILABLE_MODELS } from "@/lib/constants";
 import { getCompetingModelIds } from "@/lib/settings";
 import { ChatMessage } from "@/types";
 import { ChatMessages } from "@/components/chat/ChatMessages";
-import { Brain, Sparkles, MessageSquare, ArrowLeft, Bot as BotIcon } from "lucide-react";
+import {
+  Brain,
+  Sparkles,
+  MessageSquare,
+  ArrowLeft,
+  Bot as BotIcon,
+} from "lucide-react";
 
 export default function WorkspacePage() {
   const { isMultiChat, selectedModel, selectedAgent } = useWorkspace();
@@ -32,77 +38,9 @@ export default function WorkspacePage() {
     const query = input.trim();
     if (!query || isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: query,
-    };
-
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
-    setInput("");
-
-    const greetingPattern = /^(hi|hello|hey)\b/i;
-    if (messages.length === 0 && greetingPattern.test(query)) {
-      setMessages([
-        ...nextMessages,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: "Hey Diwan 👋\n\nWhat are we building or fixing today? 🚀",
-        },
-      ]);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const enabledModels = getCompetingModelIds();
-      const body: {
-        model: string;
-        messages: { role: string; content: string }[];
-        enabledModels?: string[];
-      } = {
-        model: selectedModel,
-        messages: nextMessages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-      };
-      if (enabledModels.length > 0) body.enabledModels = enabledModels;
-
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        throw new Error("Unable to get a response right now.");
-      }
-
-      const payload = (await response.json()) as { text?: string };
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: payload.text?.trim() || "I couldn't generate a response.",
-        },
-      ]);
-    } catch {
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content:
-            "Something went wrong while generating the reply. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+    // Redirect to omni agent with the user's query
+    const encodedQuery = encodeURIComponent(query);
+    window.location.href = `/agents?type=omni&q=${encodedQuery}`;
   };
 
   const isChatting = messages.length > 0;
@@ -168,9 +106,11 @@ export default function WorkspacePage() {
     <div className="relative mx-auto flex h-full w-full max-w-6xl flex-col px-6 sm:px-10 lg:px-16">
       {isChatting ? (
         <div className="flex flex-1 flex-col py-10 animate-in fade-in duration-500">
-
-
-          <ChatMessages messages={messages} isLoading={isLoading} agentId={selectedAgent} />
+          <ChatMessages
+            messages={messages}
+            isLoading={isLoading}
+            agentId={selectedAgent}
+          />
 
           {/* Command bar - Fixed at bottom */}
           <div className="sticky bottom-0 z-20 mt-auto bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/95 to-transparent pt-12 pb-10 -mx-6 sm:-mx-10 lg:-mx-16 px-6 sm:px-10 lg:px-16 flex justify-center">
@@ -188,7 +128,7 @@ export default function WorkspacePage() {
         <div className="flex flex-1 flex-col items-center justify-center py-20 animate-in fade-in zoom-in-[0.98] duration-1000">
           <div className="mb-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl border border-violet/20 bg-violet/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),inset_0_2px_4px_rgba(255,255,255,0.05)]">
-               <BotIcon className="h-10 w-10 text-violet-light" />
+              <BotIcon className="h-10 w-10 text-violet-light" />
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-text sm:text-5xl">
               What can I help with?
@@ -206,31 +146,42 @@ export default function WorkspacePage() {
 
           {/* Feature Grid */}
           <div className="mt-24 grid w-full max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet-light">
-                   <Brain className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Expert Agents</h3>
-                <p className="text-xs leading-relaxed text-text-muted font-medium">Switch between Researcher, Developer, or Analyst for specialized workflows.</p>
-             </div>
-             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
-                   <MessageSquare className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Multi-Chat</h3>
-                <p className="text-xs leading-relaxed text-text-muted font-medium">Enable Multi-Chat to compare outputs from Llama 3, GPT-4, and Gemini side-by-side.</p>
-             </div>
-             <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                   <Sparkles className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">Smart Search</h3>
-                <p className="text-xs leading-relaxed text-text-muted font-medium">Use AI Agent mode for deep research and real-time knowledge discovery.</p>
-             </div>
-          </div>
-          
-          <div className="mt-20 w-full animate-in fade-in duration-1000 delay-500">
-             <RecentActivity />
+            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet-light">
+                <Brain className="h-5 w-5" />
+              </div>
+              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+                Expert Agents
+              </h3>
+              <p className="text-xs leading-relaxed text-text-muted font-medium">
+                Switch between Researcher, Developer, or Analyst for specialized
+                workflows.
+              </p>
+            </div>
+            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+                Multi-Chat
+              </h3>
+              <p className="text-xs leading-relaxed text-text-muted font-medium">
+                Enable Multi-Chat to compare outputs from Llama 3, GPT-4, and
+                Gemini side-by-side.
+              </p>
+            </div>
+            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h3 className="mb-2 text-sm font-bold text-text uppercase tracking-wider">
+                Smart Search
+              </h3>
+              <p className="text-xs leading-relaxed text-text-muted font-medium">
+                Use AI Agent mode for deep research and real-time knowledge
+                discovery.
+              </p>
+            </div>
           </div>
         </div>
       )}

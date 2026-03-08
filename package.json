@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^3.0.27",
+    "@ai-sdk/groq": "^3.0.29",
     "@ai-sdk/react": "^3.0.113",
     "@clerk/nextjs": "^6.39.0",
     "@e2b/code-interpreter": "^2.3.3",
@@ -21,7 +21,7 @@
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.98.0",
     "@tavily/core": "^0.7.2",
-    "ai": "^6.0.108",
+    "ai": "^6.0.116",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.5",
     "lucide-react": "^0.577.0",

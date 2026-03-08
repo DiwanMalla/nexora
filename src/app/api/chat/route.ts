@@ -1,6 +1,8 @@
-import { generateText } from "ai";
+import { generateText, tool } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { tavilySearch } from "@/lib/tavily";
 
 export const runtime = "edge";
 
@@ -101,6 +103,21 @@ export async function POST(req: Request) {
     const result = await generateText({
       model: groq(modelId),
       messages: messages as ChatMsg[],
+      tools: {
+        webSearch: tool({
+          description: "Search the web for up-to-date information, facts, news, and history.",
+          parameters: z.object({
+            query: z.string().describe("The search query"),
+          }),
+          execute: async ({ query }: { query: string }) => {
+            try {
+              return await tavilySearch(query);
+            } catch (err: any) {
+              return { error: err.message || "Search failed." };
+            }
+          },
+        }),
+      },
     });
     return NextResponse.json({ text: result.text }, { status: 200 });
   } catch {

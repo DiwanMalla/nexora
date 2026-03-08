@@ -26,6 +26,7 @@ import {
   BarChart3,
   Code2,
   MessageSquare,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountSettingsModal } from "@/components/dashboard/AccountSettingsModal";
@@ -35,7 +36,7 @@ import { AVAILABLE_MODELS, AVAILABLE_AGENTS } from "@/lib/constants";
 
 const mainNav = [
   { href: "/workspace", label: "Home", icon: Home },
-  { href: "/agents?type=aichat", label: "AI Chat", icon: MessageSquare },
+  { href: "/agents?type=aichat", label: "AI Chat", icon: SparklesIcon },
   { href: "/inbox", label: "AI Inbox", icon: Inbox },
   { href: "/discover", label: "Discover", icon: LayoutGrid },
   { href: "/drive", label: "AI Drive", icon: FolderOpen },
@@ -50,6 +51,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
   
   const { selectedModel, selectedAgent, setSelectedAgent } = useWorkspace();
   
@@ -58,7 +60,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const getAgentIcon = (id: string) => {
     switch (id) {
-      case "ai-chat": return BotIcon;
+      case "omni": return BotIcon;
+      case "aichat": return SparklesIcon;
       case "researcher": return Search;
       case "coder": return Code2;
       case "analyst": return BarChart3;
@@ -69,7 +72,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const ActiveAgentIcon = getAgentIcon(selectedAgent);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
+    <div
+      className="flex h-screen overflow-hidden bg-[var(--bg)]"
+      style={
+        {
+          "--sidebar-width": sidebarOpen ? "15rem" : "68px",
+        } as React.CSSProperties
+      }
+    >
       {/* ─── Sidebar ─── */}
       <aside
         className={cn(
@@ -189,8 +199,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             
             {agentDropdownOpen && sidebarOpen && (
               <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#121212] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-                {AVAILABLE_AGENTS.map((agent) => {
+                {AVAILABLE_AGENTS.filter(a => a.id !== 'omni').map((agent) => {
                   const AgentIcon = getAgentIcon(agent.id);
+                  const disableHoverForAiChatInOmni =
+                    selectedAgent === "omni" && agent.id === "aichat";
                   return (
                     <button
                       key={agent.id}
@@ -200,7 +212,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       }}
                       className={cn(
                         "flex w-full items-center gap-3 px-4 py-3 text-xs font-bold transition-all",
-                        selectedAgent === agent.id ? "bg-white/5 text-white" : "text-text-muted hover:bg-white/[0.02] hover:text-white"
+                        selectedAgent === agent.id
+                          ? "bg-white/5 text-white"
+                          : disableHoverForAiChatInOmni
+                            ? "text-text-muted"
+                            : "text-text-muted hover:bg-white/[0.02] hover:text-white"
                       )}
                     >
                       <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-white" : "text-text-dim")} />
@@ -208,6 +224,43 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     </button>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* History Dropdown */}
+          <div className="relative mt-2 border-t border-white/[0.06] pt-2">
+            <button
+              onClick={() => setHistoryDropdownOpen(!historyDropdownOpen)}
+              className={cn(
+                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+                focusRing,
+                !sidebarOpen && "justify-center px-0"
+              )}
+            >
+              <Clock className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
+              {sidebarOpen && (
+                <div className="flex flex-1 items-center justify-between">
+                  <span>History</span>
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", historyDropdownOpen && "rotate-180")} />
+                </div>
+              )}
+            </button>
+            
+            {historyDropdownOpen && sidebarOpen && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#121212] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-2 space-y-1">
+                  <div className="px-2 py-1.5 text-[10px] uppercase font-bold text-text-dim">Recent</div>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                    <span className="truncate">Next.js App Router patterns</span>
+                  </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                    <span className="truncate">Fixing useEffect dependency</span>
+                  </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                    <span className="truncate">Workspace Agent Redesign</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

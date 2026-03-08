@@ -19,7 +19,8 @@ export const AVAILABLE_MODELS: AIModel[] = [
 ];
 
 export const AVAILABLE_AGENTS: AIAgent[] = [
-  { id: "ai-chat", name: "AI Chat", icon: "Bot" },
+  { id: "omni", name: "Omni Agent", icon: "Bot" },
+  { id: "aichat", name: "AI Chat", icon: "Sparkles" },
   { id: "researcher", name: "Researcher", icon: "Search" },
   { id: "coder", name: "Developer", icon: "Code2" },
   { id: "analyst", name: "Analyst", icon: "BarChart3" },
