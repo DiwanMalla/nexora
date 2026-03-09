@@ -88,8 +88,6 @@ const AI_PROVIDERS: {
       { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
       { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" },
       { id: "openai/gpt-oss-20b", name: "GPT-OSS 20B" },
-      { id: "groq/compound", name: "Groq Compound" },
-      { id: "groq/compound-mini", name: "Groq Compound Mini" },
     ],
   },
   {
@@ -180,7 +178,8 @@ const defaultProviderPref = (provider: (typeof AI_PROVIDERS)[0]): AIProviderPref
   modelId: provider.models[0]?.id ?? "",
 });
 
-const defaultCompetingModelIds = AVAILABLE_MODELS.slice(0, 2).map((m) => m.id);
+/** Default: no competing models, so the chat dropdown selection is used. */
+const defaultCompetingModelIds: string[] = [];
 
 const defaultSettings: UserSettings = {
   tab: "general",
@@ -215,7 +214,6 @@ export function AccountSettingsModal({
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [savePulse, setSavePulse] = useState(false);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const profileEmail = user?.primaryEmailAddress?.emailAddress || "";
   const profileName = settings.profileName;
@@ -349,19 +347,19 @@ export function AccountSettingsModal({
         role="dialog"
         aria-modal="true"
         aria-label="Account settings"
-        className="relative grid h-[620px] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-3xl border border-white/[0.08] bg-[linear-gradient(140deg,rgba(24,27,35,0.95)_0%,rgba(14,16,22,0.96)_100%)] shadow-[0_30px_80px_rgba(0,0,0,0.65)] md:grid-cols-[280px_1fr]"
+        className="relative grid h-[620px] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-3xl border border-border bg-bg-elevated shadow-2xl md:grid-cols-[280px_1fr]"
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 z-10 rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+          className="absolute right-5 top-5 z-10 rounded-lg p-1.5 text-text-muted transition hover:bg-surface-overlay-strong hover:text-text"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <aside className="border-b border-white/[0.06] bg-black/15 p-6 md:border-b-0 md:border-r">
-          <h2 className="text-3xl font-semibold tracking-tight text-white">
+        <aside className="border-b border-border bg-surface-overlay p-6 md:border-b-0 md:border-r">
+          <h2 className="text-3xl font-semibold tracking-tight text-text">
             Settings
           </h2>
 
@@ -374,8 +372,8 @@ export function AccountSettingsModal({
                 className={cn(
                   "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-base font-medium transition",
                   settings.tab === key
-                    ? "bg-white/[0.06] text-white"
-                    : "text-white/75 hover:bg-white/[0.04] hover:text-white",
+                    ? "bg-surface-overlay-strong text-text"
+                    : "text-text-muted hover:bg-surface-overlay hover:text-text",
                 )}
               >
                 <Icon className="h-4.5 w-4.5" />
@@ -387,10 +385,10 @@ export function AccountSettingsModal({
 
         <div className="flex h-full flex-col p-7 sm:p-8">
           <div>
-            <h3 className="text-3xl font-semibold tracking-tight text-white">
+            <h3 className="text-3xl font-semibold tracking-tight text-text">
               {titleByTab[settings.tab].title}
             </h3>
-            <p className="mt-1 text-lg text-white/60">
+            <p className="mt-1 text-lg text-text-muted">
               {titleByTab[settings.tab].subtitle}
             </p>
           </div>
@@ -399,10 +397,10 @@ export function AccountSettingsModal({
             {settings.tab === "general" && (
               <div className="space-y-8">
                 <div>
-                  <p className="mb-3 text-xl font-medium text-white">
+                  <p className="mb-3 text-xl font-medium text-text">
                     Appearance
                   </p>
-                  <div className="grid grid-cols-3 rounded-full border border-white/15 bg-black/20 p-1.5">
+                  <div className="grid grid-cols-3 rounded-full border border-border bg-surface-overlay p-1.5">
                     <button
                       type="button"
                       onClick={() =>
@@ -411,8 +409,8 @@ export function AccountSettingsModal({
                       className={cn(
                         "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
                         settings.theme === "system"
-                          ? "bg-white font-semibold text-[#0b0d13]"
-                          : "font-medium text-white/70",
+                          ? "bg-surface-invert font-semibold text-surface-invert-text"
+                          : "font-medium text-text-muted",
                       )}
                     >
                       <Monitor className="h-4 w-4" />
@@ -426,8 +424,8 @@ export function AccountSettingsModal({
                       className={cn(
                         "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
                         settings.theme === "light"
-                          ? "bg-white font-semibold text-[#0b0d13]"
-                          : "font-medium text-white/70",
+                          ? "bg-surface-invert font-semibold text-surface-invert-text"
+                          : "font-medium text-text-muted",
                       )}
                     >
                       <Sun className="h-4 w-4" />
@@ -441,8 +439,8 @@ export function AccountSettingsModal({
                       className={cn(
                         "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
                         settings.theme === "dark"
-                          ? "bg-white font-semibold text-[#0b0d13]"
-                          : "font-medium text-white/70",
+                          ? "bg-surface-invert font-semibold text-surface-invert-text"
+                          : "font-medium text-text-muted",
                       )}
                     >
                       <Moon className="h-4 w-4" />
@@ -452,7 +450,7 @@ export function AccountSettingsModal({
                 </div>
 
                 <div>
-                  <p className="mb-3 text-xl font-medium text-white">
+                  <p className="mb-3 text-xl font-medium text-text">
                     Language Preferences
                   </p>
                   <div className="rounded-2xl border border-white/15 bg-black/20 px-5 py-4">
@@ -465,9 +463,9 @@ export function AccountSettingsModal({
                         {settings.language}
                       </span>
                       {languageOpen ? (
-                        <ChevronUp className="h-5 w-5 text-white/55" />
+                        <ChevronUp className="h-5 w-5 text-text-muted" />
                       ) : (
-                        <ChevronDown className="h-5 w-5 text-white/55" />
+                        <ChevronDown className="h-5 w-5 text-text-muted" />
                       )}
                     </button>
                     {languageOpen && (
@@ -480,7 +478,7 @@ export function AccountSettingsModal({
                           }));
                           setLanguageOpen(false);
                         }}
-                        className="mt-3 flex w-full items-center justify-between rounded-xl bg-white/[0.04] px-3 py-2 text-left text-base font-medium text-white"
+                        className="mt-3 flex w-full items-center justify-between rounded-xl bg-surface-overlay px-3 py-2 text-left text-base font-medium text-text"
                       >
                         English
                         <Check className="h-4 w-4 text-violet-light" />
@@ -493,18 +491,16 @@ export function AccountSettingsModal({
 
             {settings.tab === "ai" && (
               <div className="space-y-4">
-                <p className="text-sm text-white/60">
+                <p className="text-sm text-text-muted">
                   Turn providers on or off and choose which model to use for each.
                 </p>
                 <div className="space-y-2">
                   {AI_PROVIDERS.map((provider) => {
                     const pref = prefs[provider.id] ?? defaultProviderPref(provider);
-                    const selectedModel = provider.models.find((m) => m.id === pref.modelId) ?? provider.models[0];
-                    const isOpen = openDropdownId === provider.id;
                     return (
                       <div
                         key={provider.id}
-                        className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3"
+                        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-overlay px-4 py-3"
                       >
                         {/* Logo */}
                         <div
@@ -516,7 +512,7 @@ export function AccountSettingsModal({
                           {provider.logo}
                         </div>
                         {/* Provider name */}
-                        <span className="min-w-[100px] text-base font-semibold text-white/90">
+                        <span className="min-w-[100px] text-base font-semibold text-text">
                           {provider.name}
                         </span>
                         {/* On/off toggle */}
@@ -541,71 +537,15 @@ export function AccountSettingsModal({
                             )}
                           />
                         </button>
-                        {/* Model dropdown (when enabled) */}
-                        {pref.enabled && (
-                          <div className="relative ml-auto">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenDropdownId(isOpen ? null : provider.id)
-                              }
-                              className="flex min-w-[160px] items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-left text-sm font-medium text-white/90 transition hover:bg-white/10"
-                            >
-                              <span className="truncate">
-                                {selectedModel?.name ?? "Select model"}
-                              </span>
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 shrink-0 text-white/50 transition-transform",
-                                  isOpen && "rotate-180",
-                                )}
-                              />
-                            </button>
-                            {isOpen && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-0"
-                                  aria-hidden
-                                  onClick={() => setOpenDropdownId(null)}
-                                />
-                                <div className="absolute right-0 top-full z-10 mt-1 min-w-[200px] overflow-hidden rounded-xl border border-white/10 bg-[#0E0E12] shadow-xl">
-                                  {provider.models.map((model) => (
-                                    <button
-                                      key={model.id}
-                                      type="button"
-                                      onClick={() => {
-                                        setProviderPref(provider.id, {
-                                          modelId: model.id,
-                                        });
-                                        setOpenDropdownId(null);
-                                      }}
-                                      className={cn(
-                                        "flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition",
-                                        pref.modelId === model.id
-                                          ? "bg-violet-500/20 text-violet-200"
-                                          : "text-white/80 hover:bg-white/5 hover:text-white",
-                                      )}
-                                    >
-                                      {model.name}
-                                      {pref.modelId === model.id && (
-                                        <Check className="h-4 w-4 shrink-0" />
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                  <p className="mb-1 text-sm font-semibold text-white/90">
+                <div className="rounded-2xl border border-border bg-surface-overlay p-4">
+                  <p className="mb-1 text-sm font-semibold text-text">
                     Competing models (best response)
                   </p>
-                  <p className="mb-3 text-xs text-white/60">
+                  <p className="mb-3 text-xs text-text-muted">
                     When multiple are selected, AI Chat runs these in parallel and combines answers into one agreed response.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -618,8 +558,8 @@ export function AccountSettingsModal({
                           className={cn(
                             "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition",
                             checked
-                              ? "border-violet-500/40 bg-violet-500/10 text-white"
-                              : "border-white/10 bg-black/20 text-white/70 hover:bg-white/5",
+                              ? "border-violet-500/40 bg-violet-500/10 text-text"
+                              : "border-border bg-surface-overlay text-text-muted hover:bg-surface-overlay-strong",
                           )}
                         >
                           <input
@@ -639,11 +579,11 @@ export function AccountSettingsModal({
 
             {settings.tab === "memory" && (
               <div className="space-y-6">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                  <p className="text-lg font-semibold text-white">
+                <div className="rounded-2xl border border-border bg-surface-overlay p-5">
+                  <p className="text-lg font-semibold text-text">
                     Enable account memory
                   </p>
-                  <p className="mt-1 text-sm text-white/60">
+                  <p className="mt-1 text-sm text-text-muted">
                     When enabled, Nexora can remember useful context for better
                     responses.
                   </p>
@@ -658,14 +598,14 @@ export function AccountSettingsModal({
                     }
                     className={cn(
                       "mt-5 flex w-14 items-center rounded-full p-1 transition",
-                      settings.memoryEnabled ? "bg-violet" : "bg-white/20",
+                      settings.memoryEnabled ? "bg-violet" : "bg-surface-overlay-strong",
                     )}
                     aria-pressed={settings.memoryEnabled}
                     aria-label="Enable account memory"
                   >
                     <span
                       className={cn(
-                        "h-5 w-5 rounded-full bg-white transition-transform",
+                        "h-5 w-5 rounded-full bg-surface-invert transition-transform",
                         settings.memoryEnabled
                           ? "translate-x-7"
                           : "translate-x-0",
@@ -679,7 +619,7 @@ export function AccountSettingsModal({
             {settings.tab === "profile" && (
               <div className="space-y-5">
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/70">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
                     <UserCircle2 className="h-4 w-4" />
                     Full name
                   </span>
@@ -691,12 +631,12 @@ export function AccountSettingsModal({
                         profileName: event.target.value,
                       }))
                     }
-                    className="w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-base text-white outline-none transition focus:border-violet"
+                    className="w-full rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text outline-none transition focus:border-violet"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/70">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
                     <Phone className="h-4 w-4" />
                     Phone
                   </span>
@@ -709,7 +649,7 @@ export function AccountSettingsModal({
                           profilePhoneCountry: event.target.value,
                         }))
                       }
-                      className="w-20 rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-base text-white outline-none transition focus:border-violet"
+                      className="w-20 rounded-xl border border-border bg-surface-overlay px-3 py-3 text-base text-text outline-none transition focus:border-violet"
                     />
                     <input
                       value={settings.profilePhoneNumber}
@@ -720,31 +660,31 @@ export function AccountSettingsModal({
                         }))
                       }
                       placeholder="e.g. 98765 43210"
-                      className="flex-1 rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-base text-white outline-none transition placeholder:text-white/35 focus:border-violet"
+                      className="flex-1 rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text outline-none transition placeholder:text-text-dim focus:border-violet"
                     />
                   </div>
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-white/70">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
                     <Mail className="h-4 w-4" />
                     Email
                   </span>
                   <input
                     readOnly
                     value={profileEmail}
-                    className="w-full rounded-xl border border-white/15 bg-black/35 px-4 py-3 text-base text-white/80 outline-none"
+                    className="w-full rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text-muted outline-none"
                   />
                 </label>
               </div>
             )}
 
             {settings.tab === "subscription" && (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-                <p className="text-lg font-semibold text-white">
+              <div className="rounded-2xl border border-border bg-surface-overlay p-6 text-center">
+                <p className="text-lg font-semibold text-text">
                   Subscription settings coming soon
                 </p>
-                <p className="mt-1 text-sm text-white/60">
+                <p className="mt-1 text-sm text-text-muted">
                   We will add plan management and billing controls here later.
                 </p>
               </div>
@@ -759,7 +699,7 @@ export function AccountSettingsModal({
                 "flex w-full items-center justify-center gap-2 rounded-full py-3 text-xl font-semibold transition",
                 savePulse
                   ? "bg-emerald-300 text-[#0f1218]"
-                  : "bg-white/70 text-[#0f1218] hover:bg-white",
+                  : "bg-surface-overlay-strong text-text hover:bg-surface-invert hover:text-surface-invert-text",
               )}
             >
               <Check className="h-5 w-5" />

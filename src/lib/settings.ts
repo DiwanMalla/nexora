@@ -6,11 +6,13 @@ type StoredSettings = {
   competingModelIds?: string[];
 };
 
-const defaultCompetingIds = AVAILABLE_MODELS.slice(0, 2).map((m) => m.id);
+/** Default: no competing models, so the selected model in the dropdown is used. */
+const defaultCompetingIds: string[] = [];
 
 /**
  * Returns the list of model IDs that should compete and produce a consensus response in AI Chat.
  * When 2+ are returned, the chat API runs them in parallel and synthesizes one agreed answer.
+ * When empty (default), only the currently selected model in the UI is used.
  */
 export function getCompetingModelIds(): string[] {
   if (typeof window === "undefined") return defaultCompetingIds;
@@ -23,7 +25,14 @@ export function getCompetingModelIds(): string[] {
     const valid = ids.filter(
       (id): id is string => typeof id === "string" && id.length > 0,
     );
-    return valid.length > 0 ? valid : defaultCompetingIds;
+    // Migration: old default was first 2 models; treat as "no competing" so dropdown is used
+    const oldDefault =
+      AVAILABLE_MODELS.length >= 2 &&
+      valid.length === 2 &&
+      valid[0] === AVAILABLE_MODELS[0].id &&
+      valid[1] === AVAILABLE_MODELS[1].id;
+    if (oldDefault) return defaultCompetingIds;
+    return valid;
   } catch {
     return defaultCompetingIds;
   }

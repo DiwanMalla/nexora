@@ -66,20 +66,20 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
     >
       {m.role === "user" ? (
         <div className="flex items-center gap-3">
-          <div className="max-w-[80%] rounded-2xl bg-[#1A1A1A] border border-white/5 px-4 py-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-[var(--text)]">
+          <div className="max-w-[80%] rounded-2xl bg-bg-card border border-border px-4 py-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text">
             {m.content}
           </div>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black text-[var(--text-xs)] font-semibold shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-invert text-surface-invert-text text-[var(--text-xs)] font-semibold shadow-sm">
             DM
           </div>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 shadow-sm">
-              <Hexagon className="h-4 w-4 text-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-overlay-strong border border-border shadow-sm">
+              <Hexagon className="h-4 w-4 text-text" />
             </div>
-            <span className="text-[var(--text-base)] font-semibold text-white tracking-tight">Nexora</span>
+            <span className="text-[var(--text-base)] font-semibold text-text tracking-tight">Nexora</span>
           </div>
           <div className="typography-prose max-w-none pl-11">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -87,18 +87,26 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
             </ReactMarkdown>
           </div>
           <div className="flex items-center gap-4 pl-11">
-            <button className="text-text-dim hover:text-white transition-colors" title="Copy">
+            <button className="text-text-dim hover:text-text transition-colors" title="Copy">
               <Copy className="h-4 w-4" />
             </button>
-            <button className="text-text-dim hover:text-white transition-colors" title="Helpful">
+            <button className="text-text-dim hover:text-text transition-colors" title="Helpful">
               <ThumbsUp className="h-4 w-4" />
             </button>
-            <button className="text-text-dim hover:text-white transition-colors" title="Not helpful">
+            <button className="text-text-dim hover:text-text transition-colors" title="Not helpful">
               <ThumbsDown className="h-4 w-4" />
             </button>
-            <button className="text-text-dim hover:text-white transition-colors" title="Download">
+            <button className="text-text-dim hover:text-text transition-colors" title="Download">
               <Download className="h-4 w-4" />
             </button>
+            {m.model && (
+              <div className="ml-auto flex items-center gap-2 rounded-full bg-surface-overlay/50 border border-border px-3 py-1 animate-in fade-in slide-in-from-right-2 duration-1000">
+                <div className="h-1.5 w-1.5 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)] animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-dim/80">
+                  {m.model.split("/").pop()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -111,12 +119,12 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
       {isLoading && (
         <div className="flex flex-col gap-8 animate-in fade-in duration-500">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 shadow-lg animate-pulse">
-              <Hexagon className="h-4 w-4 text-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-overlay-strong border border-border shadow-lg animate-pulse">
+              <Hexagon className="h-4 w-4 text-text" />
             </div>
-            <span className="text-[var(--text-base)] font-bold text-white tracking-[0.2em] uppercase">Nexora Search</span>
+            <span className="text-[var(--text-base)] font-bold text-text tracking-[0.2em] uppercase">Nexora Search</span>
           </div>
-          <div className="flex flex-col gap-5 pl-4 border-l border-white/5 ml-4">
+          <div className="flex flex-col gap-5 pl-4 border-l border-border ml-4">
             {researchSteps.map((step, i) => {
               const Icon = step.icon;
               const isCompleted = i < currentStep;
@@ -130,15 +138,15 @@ export function ChatMessages({ messages, isLoading, agentId, lastMessageRef }: C
                   <div className={cn(
                     "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-500",
                     isCompleted ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" :
-                    isActive ? "border-white/20 bg-white/5 text-white animate-pulse" :
-                    "border-white/5 text-text-dim"
+                    isActive ? "border-border-hover bg-surface-overlay-strong text-text animate-pulse" :
+                    "border-border text-text-dim"
                   )}>
                     {isCompleted ? <CheckCircle2 className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className={cn(
                       "text-[var(--text-sm)] font-semibold uppercase tracking-wide transition-colors",
-                      isActive ? "text-white" : "text-text-muted"
+                      isActive ? "text-text" : "text-text-muted"
                     )}>
                       {step.label}
                     </span>

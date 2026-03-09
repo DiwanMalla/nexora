@@ -24,6 +24,23 @@ import {
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Image from "next/image";
+
+function getModelLogo(model: AIModel) {
+  const lcName = model.name.toLowerCase();
+  const lcProvider = model.provider?.toLowerCase() || "";
+  if (lcName.includes("gpt") || lcProvider.includes("openai")) return "/ai-provider logo/openai.png";
+  if (lcName.includes("llama") || lcProvider.includes("meta")) return "/ai-provider logo/meta ai.png";
+  if (lcName.includes("gemini") || lcProvider.includes("google")) return "/ai-provider logo/google.webp";
+  if (lcName.includes("deepseek")) return "/ai-provider logo/deepseek.jpg";
+  if (lcName.includes("qwen") || lcProvider.includes("qwen")) return "/ai-provider logo/qwen.png";
+  if (lcName.includes("kimi") || lcProvider.includes("moonshot")) return "/ai-provider logo/moonshot.png";
+  if (lcName.includes("mistral") || lcProvider.includes("mistral")) return "/ai-provider logo/mistral.webp";
+  if (lcName.includes("claude") || lcProvider.includes("anthropic")) return "/ai-provider logo/anthropic.png";
+  if (lcName.includes("cohere") || lcProvider.includes("cohere")) return "/ai-provider logo/cohere.png";
+  return null;
+}
+
 
 type MultiRound = {
   user: string;
@@ -147,7 +164,10 @@ export function GenericAgent() {
               }),
             });
             if (!res.ok) throw new Error("Request failed");
-            const data = (await res.json()) as { text?: string };
+            const data = (await res.json()) as { text?: string; model?: string };
+            if (data.model) {
+              console.log("[Nexora] Model from API:", data.model);
+            }
             return {
               model,
               content: data.text?.trim() || "No response.",
@@ -194,25 +214,38 @@ export function GenericAgent() {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error("Unable to get a response.");
-
-      const payload = (await response.json()) as { text?: string };
+      const payload = (await response.json()) as {
+        text?: string;
+        model?: string;
+        error?: string;
+        details?: string;
+      };
+      if (!response.ok) {
+        const errMsg =
+          payload.details || payload.error || "Unable to get a response.";
+        throw new Error(errMsg);
+      }
+      if (payload.model) {
+        console.log("[Nexora] Model from API:", payload.model);
+      }
       setMessages((prev) => [
         ...prev,
         {
           id: `assistant-${Date.now()}`,
           role: "assistant",
           content: payload.text?.trim() || "I couldn't generate a response.",
+          model: selectedModel,
         },
       ]);
-    } catch {
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong.";
       setMessages((prev) => [
         ...prev,
         {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content:
-            "Something went wrong while generating the reply. Please try again.",
+          content: `Something went wrong. ${message} Try another model or try again.`,
         },
       ]);
     } finally {
@@ -289,7 +322,7 @@ export function GenericAgent() {
                       <div
                         className={cn(
                           "w-px shrink-0 self-stretch",
-                          enabled ? "bg-white/10" : "bg-white/5",
+                          enabled ? "bg-surface-overlay-strong" : "bg-surface-overlay",
                         )}
                         aria-hidden
                       />
@@ -299,7 +332,7 @@ export function GenericAgent() {
                         "flex flex-col transition-all duration-300 ease-in-out",
                         enabled
                           ? "w-[min(420px,85vw)] min-w-[min(420px,85vw)] max-w-[min(420px,85vw)]"
-                          : "w-[60px] min-w-[60px] max-w-[60px] items-center cursor-pointer hover:bg-white/[0.02] opacity-80",
+                          : "w-[60px] min-w-[60px] max-w-[60px] items-center cursor-pointer hover:bg-surface-overlay opacity-80",
                       )}
                       onClick={() => {
                         if (!enabled) setColumnEnabledById(model.id, true);
@@ -315,9 +348,18 @@ export function GenericAgent() {
                       >
                         {enabled ? (
                           <>
-                            <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] transition-colors cursor-pointer px-3 py-1.5">
-                              <MessageSquare className="h-4 w-4 shrink-0 text-white" />
-                              <span className="truncate text-[13px] font-medium text-white">
+                            <div className="flex items-center gap-2 rounded-full border border-border bg-bg-elevated px-3 py-1.5 transition-colors hover:bg-surface-overlay relative">
+                              {(() => {
+                                const logoUrl = getModelLogo(model);
+                                return logoUrl ? (
+                                  <div className="relative h-4 w-4 overflow-hidden rounded-[4px] bg-surface-invert flex items-center justify-center shrink-0">
+                                    <Image src={logoUrl} alt={model.name} fill className={cn("object-contain p-0.5", logoUrl.includes("openai") && "invert")} />
+                                  </div>
+                                ) : (
+                                  <MessageSquare className="h-4 w-4 shrink-0 text-surface-invert-text" />
+                                );
+                              })()}
+                              <span className="truncate text-sm font-medium text-text">
                                 {model.name}
                               </span>
                               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-muted" />
@@ -325,7 +367,7 @@ export function GenericAgent() {
 
                             <div className="flex-1" />
 
-                            <button className="text-text-muted hover:text-white transition-colors">
+                            <button className="text-text-muted hover:text-text transition-colors">
                               <ExternalLink className="h-[15px] w-[15px]" />
                             </button>
 
@@ -341,19 +383,28 @@ export function GenericAgent() {
                                   )
                                 }
                               />
-                              <div className="peer h-5 w-9 rounded-full bg-white/10 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-[#20A05A] peer-focus:outline-none dark:border-gray-600 peer-checked:after:translate-x-full"></div>
+                              <div className="peer h-5 w-9 rounded-full bg-surface-overlay-strong after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-surface-invert after:transition-all after:content-[''] peer-checked:bg-accent-success peer-focus:outline-none peer-checked:after:translate-x-full border border-border"></div>
                             </label>
                           </>
                         ) : (
                           <>
-                            <MessageSquare className="h-[22px] w-[22px] text-text-muted hover:text-white transition-colors" />
-                            <Maximize2 className="h-2.5 w-2.5 text-text-dim" />
+                            {(() => {
+                                const logoUrl = getModelLogo(model);
+                                return logoUrl ? (
+                                  <div className="relative h-[22px] w-[22px] overflow-hidden rounded-[4px] bg-surface-invert flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity">
+                                    <Image src={logoUrl} alt={model.name} fill className={cn("object-contain p-0.5", logoUrl.includes("openai") && "invert")} />
+                                  </div>
+                                ) : (
+                                  <MessageSquare className="h-[22px] w-[22px] text-text-muted hover:text-text transition-colors" />
+                                );
+                            })()}
+                            <Maximize2 className="h-2.5 w-2.5 text-text-dim mt-2" />
                           </>
                         )}
                       </div>
                       {/* Column content */}
                       {enabled && (
-                        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 border-t border-white/5">
+                        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 border-t border-border">
                           {multiRounds.length === 0 && (
                             <div className="flex flex-1 flex-col items-center justify-center py-12 text-center text-sm text-text-muted">
                               Send a message below to see all models respond.
@@ -369,12 +420,12 @@ export function GenericAgent() {
                                 className="flex flex-col gap-3"
                               >
                                 <div className="flex justify-end">
-                                  <div className="max-w-[95%] rounded-2xl bg-[#2F2F2F] px-4 py-2.5 text-sm text-text">
+                                  <div className="max-w-[95%] rounded-2xl bg-bg-card px-4 py-2.5 text-sm text-text">
                                     {round.user}
                                   </div>
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                  <div className="rounded-2xl bg-white/[0.06] px-4 py-3 text-sm text-text-muted">
+                                  <div className="rounded-2xl bg-surface-overlay-strong px-4 py-3 text-sm text-text-muted">
                                     {resp?.loading ? (
                                       <div className="flex items-center gap-1.5 py-2">
                                         <span className="h-2 w-2 animate-bounce rounded-full bg-violet-400 [animation-delay:-0.3s]" />
@@ -396,28 +447,28 @@ export function GenericAgent() {
                                         onClick={() =>
                                           copyToClipboard(resp.content)
                                         }
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-white/5 hover:text-text"
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-overlay hover:text-text"
                                         aria-label="Copy"
                                       >
                                         <Copy className="h-3.5 w-3.5" />
                                       </button>
                                       <button
                                         type="button"
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-white/5 hover:text-text"
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-overlay hover:text-text"
                                         aria-label="Good response"
                                       >
                                         <ThumbsUp className="h-3.5 w-3.5" />
                                       </button>
                                       <button
                                         type="button"
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-white/5 hover:text-text"
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-overlay hover:text-text"
                                         aria-label="Bad response"
                                       >
                                         <ThumbsDown className="h-3.5 w-3.5" />
                                       </button>
                                       <button
                                         type="button"
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-white/5 hover:text-text"
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-surface-overlay hover:text-text"
                                         aria-label="Download"
                                       >
                                         <Download className="h-3.5 w-3.5" />

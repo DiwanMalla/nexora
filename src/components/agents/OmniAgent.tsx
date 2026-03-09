@@ -94,7 +94,10 @@ export function OmniAgent() {
 
       if (!response.ok) throw new Error("Unable to get a response.");
 
-      const payload = (await response.json()) as { text?: string };
+      const payload = (await response.json()) as { text?: string; model?: string };
+      if (payload.model) {
+        console.log("[Nexora] Model from API:", payload.model);
+      }
       setMessages((prev) => [
         ...prev,
         {

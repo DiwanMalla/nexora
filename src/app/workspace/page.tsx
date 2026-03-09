@@ -11,6 +11,7 @@ import { AVAILABLE_MODELS } from "@/lib/constants";
 import { getCompetingModelIds } from "@/lib/settings";
 import { ChatMessage } from "@/types";
 import { ChatMessages } from "@/components/chat/ChatMessages";
+import { MultiChatMode } from "@/components/chat/MultiChatMode";
 import {
   Brain,
   Sparkles,
@@ -47,57 +48,12 @@ export default function WorkspacePage() {
 
   if (isMultiChat) {
     return (
-      <div className="mx-auto flex w-full max-w-7xl flex-col items-center px-6 py-14 animate-in fade-in zoom-in-95 duration-500">
-        <div className="mb-12 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet/20 border border-violet/30 shadow-lg">
-            <Brain className="h-8 w-8 text-violet-light" />
-          </div>
-          <h1 className="font-display text-[var(--text-3xl)] font-bold tracking-tight text-text sm:text-[var(--text-4xl)]">Multi-Chat Mode</h1>
-          <p className="mt-4 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text-muted">
-            Compare responses from all selected models simultaneously.
-          </p>
-        </div>
-
-        <div className="mt-16 grid w-full grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {AVAILABLE_MODELS.map((model) => (
-            <div
-              key={model.id}
-              className="group relative flex flex-col rounded-3xl border border-white/10 bg-[#0E0E12] p-6 transition-all hover:border-violet/30 hover:shadow-2xl"
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-text-muted">
-                    <MessageSquare className="h-4 w-4" />
-                  </div>
-                  <span className="text-[var(--text-base)] font-semibold text-text">
-                    {model.name}
-                  </span>
-                </div>
-                <div className="h-2 w-2 rounded-full bg-slate-800" />
-              </div>
-              <div className="flex-1 space-y-3">
-                <div className="h-3 w-3/4 rounded-full bg-white/5" />
-                <div className="h-3 w-1/2 rounded-full bg-white/5" />
-                <div className="h-3 w-2/3 rounded-full bg-white/5" />
-              </div>
-              <div className="mt-6 flex items-center gap-2 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-dim">
-                <Sparkles className="h-3 w-3" />
-                {model.provider}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Command bar at bottom */}
-        <div className="sticky bottom-0 z-20 mt-auto bg-gradient-to-t from-[var(--bg)] via-[var(--bg)] to-transparent pt-12 pb-10 -mx-6 sm:-mx-10 lg:-mx-16 px-6 sm:px-10 lg:px-16 flex justify-center">
-          <div className="w-full max-w-3xl">
-            <CommandBar
-              input={input}
-              handleInputChange={handleInputChange}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </div>
+      <div className="flex h-[calc(100vh-4rem)] w-full flex-col animate-in fade-in duration-500">
+        <MultiChatMode
+          input={input}
+          handleInputChange={handleInputChange}
+          handleSubmit={handleSubmit}
+        />
       </div>
     );
   }
@@ -142,46 +98,6 @@ export default function WorkspacePage() {
               onSubmit={handleSubmit}
               placeholder="Message Nexora..."
             />
-          </div>
-
-          {/* Feature Grid */}
-          <div className="mt-24 grid w-full max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet/10 text-violet-light">
-                <Brain className="h-5 w-5" />
-              </div>
-              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
-                Expert Agents
-              </h3>
-              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
-                Switch between Researcher, Developer, or Analyst for specialized
-                workflows.
-              </p>
-            </div>
-            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
-                Multi-Chat
-              </h3>
-              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
-                Enable Multi-Chat to compare outputs from Llama 3, GPT-4, and
-                Gemini side-by-side.
-              </p>
-            </div>
-            <div className="group rounded-3xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-violet/20">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <h3 className="mb-2 text-[var(--text-base)] font-semibold text-text uppercase tracking-wide">
-                Smart Search
-              </h3>
-              <p className="text-[var(--text-base)] leading-[var(--leading-relaxed)] text-text-muted font-medium">
-                Use AI Agent mode for deep research and real-time knowledge
-                discovery.
-              </p>
-            </div>
           </div>
         </div>
       )}

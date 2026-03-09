@@ -10,13 +10,25 @@
   --text: #ffffff;
   --text-muted: #888888;
   --text-dim: #555555;
-  --violet: #ffffff;
-  --violet-light: #eeeeee;
-  --cyan: #ffffff;
-  --cyan-light: #dddddd;
-  --accent-success: #ffffff;
+  --violet: #7c3aed;
+  --violet-light: #a78bfa;
+  --cyan: #06b6d4;
+  --cyan-light: #22d3ee;
+  --accent-success: #10a37f;
   --border: rgba(255, 255, 255, 0.1);
   --border-hover: rgba(255, 255, 255, 0.15);
+  --surface-overlay: rgba(255, 255, 255, 0.04);
+  --surface-overlay-strong: rgba(255, 255, 255, 0.08);
+  --surface-invert: #ffffff;
+  --surface-invert-text: #111111;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-track: transparent;
+  --selection-bg: rgba(255, 255, 255, 0.2);
+  --selection-color: #ffffff;
+  --prose-code-bg: rgba(255, 255, 255, 0.08);
+  --prose-pre-bg: rgba(255, 255, 255, 0.05);
+  --prose-pre-border: rgba(255, 255, 255, 0.08);
+  --prose-blockquote-border: rgba(255, 255, 255, 0.2);
   /* Fonts: --font-display, --font-body, --font-mono are set by Next.js on html */
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --radius-card: 12px;
@@ -57,14 +69,31 @@
   --text: #0f172a;
   --text-muted: #475569;
   --text-dim: #64748b;
+  --violet: #7c3aed;
+  --violet-light: #6d28d9;
+  --cyan: #0891b2;
+  --cyan-light: #06b6d4;
+  --accent-success: #059669;
   --border: rgba(15, 23, 42, 0.1);
   --border-hover: rgba(15, 23, 42, 0.16);
+  --surface-overlay: rgba(0, 0, 0, 0.04);
+  --surface-overlay-strong: rgba(0, 0, 0, 0.08);
+  --surface-invert: #0f172a;
+  --surface-invert-text: #ffffff;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-track: transparent;
+  --selection-bg: rgba(124, 58, 237, 0.2);
+  --selection-color: #0f172a;
+  --prose-code-bg: rgba(0, 0, 0, 0.06);
+  --prose-pre-bg: rgba(0, 0, 0, 0.04);
+  --prose-pre-border: rgba(15, 23, 42, 0.1);
+  --prose-blockquote-border: rgba(15, 23, 42, 0.2);
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px rgba(124, 58, 237, 0.5);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 body {
@@ -224,20 +253,20 @@ body {
   border-radius: 0.5rem;
   overflow-x: auto;
   margin-bottom: 1em;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--prose-pre-bg);
+  border: 1px solid var(--prose-pre-border);
 }
 .typography-prose :not(pre) > code {
   font-size: 0.9em;
   padding: 0.15em 0.4em;
   border-radius: 0.25rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--prose-code-bg);
 }
 .typography-prose blockquote {
   font-size: var(--text-md);
   margin: 1em 0;
   padding-left: 1em;
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  border-left: 3px solid var(--prose-blockquote-border);
   color: var(--text-muted);
 }
 
@@ -257,6 +286,6 @@ html {
 
 /* ─── Selection ─── */
 ::selection {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: var(--selection-bg);
+  color: var(--selection-color);
 }

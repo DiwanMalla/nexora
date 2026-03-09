@@ -42,16 +42,16 @@ const recentItems: RecentItem[] = [
 
 export function RecentActivity() {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[var(--bg-card)]">
-      <div className="flex items-center justify-between border-b border-white/[0.04] px-4 py-3">
+    <div className="rounded-xl border border-border bg-bg-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-[var(--text-dim)]" />
-          <h3 className="text-base font-semibold text-white">Recent</h3>
+          <Clock className="h-4 w-4 text-text-dim" />
+          <h3 className="text-base font-semibold text-text">Recent</h3>
         </div>
         <Link
           href="/workspace/history"
           className={cn(
-            "flex items-center gap-1 text-[13px] font-medium text-[var(--text-muted)] transition hover:text-white",
+            "flex items-center gap-1 text-[13px] font-medium text-text-muted transition hover:text-text",
             focusRing,
           )}
         >
@@ -60,7 +60,7 @@ export function RecentActivity() {
         </Link>
       </div>
 
-      <div className="divide-y divide-white/[0.03]">
+      <div className="divide-y divide-border">
         {recentItems.map((item) => (
           <Link
             key={item.id}
@@ -68,7 +68,7 @@ export function RecentActivity() {
               item.type === "chat" ? `/chat/${item.id}` : `/search/${item.id}`
             }
             className={cn(
-              "group flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.02]",
+              "group flex items-center gap-3 px-4 py-3 transition hover:bg-surface-overlay",
               focusRing,
             )}
           >
@@ -88,7 +88,7 @@ export function RecentActivity() {
             </span>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base text-white/90 group-hover:text-white">
+              <p className="truncate text-base text-text-muted group-hover:text-text">
                 {item.title}
               </p>
               <div className="mt-0.5 flex items-center gap-2">

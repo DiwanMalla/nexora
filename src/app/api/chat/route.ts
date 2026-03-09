@@ -3,6 +3,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { tavilySearch } from "@/lib/tavily";
+import { getModelNameByApiId } from "@/lib/ai-providers";
 
 export const runtime = "edge";
 
@@ -24,7 +25,12 @@ async function runCompetingConsensus(
   const userContent = lastUser?.content ?? "";
 
   type ChatMsg = { role: "user" | "assistant" | "system"; content: string };
-  const typedMessages = messages as ChatMsg[];
+  const systemMsg: ChatMsg = {
+    role: "system",
+    content:
+      "You are Nexora, a helpful AI assistant. Multiple models are used to combine the best answer. When asked who or what you are, say you're Nexora.",
+  };
+  const typedMessages: ChatMsg[] = [systemMsg, ...(messages as ChatMsg[])];
 
   const results = await Promise.all(
     enabledModelIds.map(async (modelId) => {
@@ -88,10 +94,21 @@ export async function POST(req: Request) {
   if (enabledModels.length > 1) {
     try {
       const text = await runCompetingConsensus(messages, enabledModels);
-      return NextResponse.json({ text }, { status: 200 });
-    } catch {
+      const modelLabel =
+        enabledModels.length > 0
+          ? enabledModels
+              .map((id) => getModelNameByApiId(id) ?? id)
+              .join(", ")
+          : "consensus";
       return NextResponse.json(
-        { error: "Unable to generate chat response." },
+        { text, model: modelLabel },
+        { status: 200 },
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Consensus request failed.";
+      return NextResponse.json(
+        { error: "Unable to generate chat response.", details: message },
         { status: 500 },
       );
     }
@@ -99,10 +116,20 @@ export async function POST(req: Request) {
 
   const modelId = enabledModels.length === 1 ? enabledModels[0] : model;
   type ChatMsg = { role: "user" | "assistant" | "system"; content: string };
+  const modelDisplayName = getModelNameByApiId(modelId) ?? modelId;
+  const systemPrompt = `You are Nexora, a helpful AI assistant. You are powered by the model: ${modelDisplayName}.
+
+When users ask "which AI model are you?", "what model are you?", "who are you?", "are you Kimi?", "are you GPT OSS?", or any identity question about which model powers you:
+- You MUST state that you are Nexora and that you are powered by ${modelDisplayName}.
+- Use a clear phrase like: "I'm Nexora, powered by ${modelDisplayName}." or "I'm powered by ${modelDisplayName}." Do not reply with only "I'm Nexora." — always include the model name (${modelDisplayName}) in your answer.`;
+  const messagesWithIdentity: ChatMsg[] = [
+    { role: "system", content: systemPrompt },
+    ...(messages as ChatMsg[]),
+  ];
   try {
     const result = await generateText({
       model: groq(modelId),
-      messages: messages as ChatMsg[],
+      messages: messagesWithIdentity,
       tools: {
         webSearch: tool({
           description: "Search the web for up-to-date information, facts, news, and history.",
@@ -119,10 +146,15 @@ export async function POST(req: Request) {
         }),
       },
     });
-    return NextResponse.json({ text: result.text }, { status: 200 });
-  } catch {
     return NextResponse.json(
-      { error: "Unable to generate chat response." },
+      { text: result.text, model: modelDisplayName },
+      { status: 200 },
+    );
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unable to generate chat response.";
+    return NextResponse.json(
+      { error: "Unable to generate chat response.", details: message },
       { status: 500 },
     );
   }

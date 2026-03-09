@@ -27,6 +27,7 @@ import {
   Code2,
   MessageSquare,
   Clock,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountSettingsModal } from "@/components/dashboard/AccountSettingsModal";
@@ -37,6 +38,7 @@ import { AVAILABLE_MODELS, AVAILABLE_AGENTS } from "@/lib/constants";
 const mainNav = [
   { href: "/workspace", label: "Home", icon: Home },
   { href: "/agents?type=aichat", label: "AI Chat", icon: SparklesIcon },
+  { href: "/providers", label: "AI Providers", icon: Cpu },
   { href: "/inbox", label: "AI Inbox", icon: Inbox },
   { href: "/discover", label: "Discover", icon: LayoutGrid },
   { href: "/drive", label: "AI Drive", icon: FolderOpen },
@@ -93,25 +95,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {/* ─── Sidebar ─── */}
       <aside
         className={cn(
-          "relative flex shrink-0 flex-col border-r border-white/[0.06] bg-[var(--bg-elevated)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          "relative flex shrink-0 flex-col border-r border-border bg-bg-elevated transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarOpen ? "w-60" : "w-[68px]",
         )}
         aria-label="Workspace navigation"
       >
         {/* Sidebar header */}
-        <div className="flex h-16 items-center gap-3 border-b border-white/[0.04] bg-white/[0.01] px-4">
+        <div className="flex h-16 items-center gap-3 border-b border-border bg-surface-overlay px-4">
           <Link
             href="/workspace"
             className="flex items-center gap-3 overflow-hidden"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.08] border border-white/10 shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-overlay-strong border border-border shadow-sm">
               <Hexagon
-                className="h-4.5 w-4.5 text-white"
+                className="h-4.5 w-4.5 text-text"
                 aria-hidden
               />
             </div>
             {sidebarOpen && (
-              <span className="font-sans text-lg font-bold tracking-tight text-white">
+              <span className="font-sans text-lg font-bold tracking-tight text-text">
                 Nexora
               </span>
             )}
@@ -120,7 +122,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={cn(
-              "ml-auto rounded-lg p-1.5 text-text-muted transition-all hover:bg-white/5 hover:text-text active:scale-90",
+              "ml-auto rounded-lg p-1.5 text-text-muted transition-all hover:bg-surface-overlay hover:text-text active:scale-90",
               focusRing,
             )}
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
@@ -139,8 +141,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             href="/agents?type=aichat"
             className={cn(
               "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200",
-              "bg-white text-black",
-              "shadow-sm hover:bg-gray-200 active:scale-95",
+              "bg-surface-invert text-surface-invert-text",
+              "shadow-sm hover:opacity-90 active:scale-95",
               focusRing,
               !sidebarOpen && "justify-center px-0",
             )}
@@ -153,16 +155,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* Active Agent Section */}
         <div className="px-3.5 pt-4">
           <div className={cn(
-            "flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3 transition-all",
+            "flex items-center gap-3 rounded-xl border border-border bg-surface-overlay p-3 transition-all",
             !sidebarOpen && "justify-center px-0"
           )}>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 border border-white/10">
-              <ActiveAgentIcon className="h-4 w-4 text-white" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-overlay-strong border border-border">
+              <ActiveAgentIcon className="h-4 w-4 text-text" />
             </div>
             {sidebarOpen && (
               <div className="flex min-w-0 flex-col">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-text-dim">Active Agent</span>
-                <span className="truncate text-xs font-bold text-white">{activeAgentObj?.name}</span>
+                <span className="truncate text-xs font-bold text-text">{activeAgentObj?.name}</span>
               </div>
             )}
           </div>
@@ -174,16 +176,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => setModelModalOpen(true)}
             className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-text-muted hover:bg-white/[0.04] hover:text-white",
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-text-muted hover:bg-surface-overlay hover:text-text",
               focusRing,
               !sidebarOpen && "justify-center px-0"
             )}
           >
-            <Brain className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
+            <Brain className="h-4 w-4 shrink-0 transition-colors group-hover:text-text" />
             {sidebarOpen && (
               <div className="flex flex-1 items-center justify-between">
                 <span>Model Selection</span>
-                <div className="rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-text-dim">{activeModelObj?.name.split(' ')[0]}</div>
+                <div className="rounded-md bg-surface-overlay px-1.5 py-0.5 text-[9px] font-bold text-text-dim">{activeModelObj?.name.split(' ')[0]}</div>
               </div>
             )}
           </button>
@@ -193,12 +195,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-surface-overlay hover:text-text",
                 focusRing,
                 !sidebarOpen && "justify-center px-0"
               )}
             >
-              <SparklesIcon className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
+              <SparklesIcon className="h-4 w-4 shrink-0 transition-colors group-hover:text-text" />
               {sidebarOpen && (
                 <div className="flex flex-1 items-center justify-between">
                   <span>Switch Agent</span>
@@ -208,7 +210,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </button>
             
             {agentDropdownOpen && sidebarOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#121212] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
                 {AVAILABLE_AGENTS.filter(a => a.id !== 'omni').map((agent) => {
                   const AgentIcon = getAgentIcon(agent.id);
                   const disableHoverForAiChatInOmni =
@@ -223,13 +225,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       className={cn(
                         "flex w-full items-center gap-3 px-4 py-3 text-xs font-bold transition-all",
                         selectedAgent === agent.id
-                          ? "bg-white/5 text-white"
+                          ? "bg-surface-overlay-strong text-text"
                           : disableHoverForAiChatInOmni
                             ? "text-text-muted"
-                            : "text-text-muted hover:bg-white/[0.02] hover:text-white"
+                            : "text-text-muted hover:bg-surface-overlay hover:text-text"
                       )}
                     >
-                      <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-white" : "text-text-dim")} />
+                      <AgentIcon className={cn("h-4 w-4", selectedAgent === agent.id ? "text-text" : "text-text-dim")} />
                       {agent.name}
                     </button>
                   );
@@ -239,16 +241,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* History Dropdown */}
-          <div className="relative mt-2 border-t border-white/[0.06] pt-2">
+          <div className="relative mt-2 border-t border-border pt-2">
             <button
               onClick={() => setHistoryDropdownOpen(!historyDropdownOpen)}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-white",
+                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-surface-overlay hover:text-text",
                 focusRing,
                 !sidebarOpen && "justify-center px-0"
               )}
             >
-              <Clock className="h-4 w-4 shrink-0 transition-colors group-hover:text-white" />
+              <Clock className="h-4 w-4 shrink-0 transition-colors group-hover:text-text" />
               {sidebarOpen && (
                 <div className="flex flex-1 items-center justify-between">
                   <span>History</span>
@@ -258,16 +260,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </button>
             
             {historyDropdownOpen && sidebarOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-white/10 bg-[#121212] shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="p-2 space-y-1">
                   <div className="px-2 py-1.5 text-[10px] uppercase font-bold text-text-dim">Recent</div>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
                     <span className="truncate">Next.js App Router patterns</span>
                   </button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
                     <span className="truncate">Fixing useEffect dependency</span>
                   </button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-white/[0.04] hover:text-white transition-colors">
+                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
                     <span className="truncate">Workspace Agent Redesign</span>
                   </button>
                 </div>
@@ -286,7 +288,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {mainNav.map(({ href, label, icon: Icon }) => {
             const isActive =
               pathname === href ||
-              (href.startsWith("/agents") && pathname === "/agents");
+              (href.startsWith("/agents") && pathname.startsWith("/agents")) ||
+              (href === "/providers" && pathname.startsWith("/providers"));
             return (
               <Link
                 key={href}
@@ -294,20 +297,20 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-white/[0.06] text-white shadow-sm"
-                    : "text-text-muted hover:bg-white/[0.04] hover:text-white",
+                    ? "bg-surface-overlay-strong text-text shadow-sm"
+                    : "text-text-muted hover:bg-surface-overlay hover:text-text",
                   focusRing,
                   !sidebarOpen && "justify-center px-0",
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r-full bg-white shadow-sm" />
+                  <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r-full bg-surface-invert shadow-sm" />
                 )}
                 <Icon
                   className={cn(
                     "h-4 w-4 shrink-0 transition-colors",
-                    isActive ? "text-white" : "group-hover:text-white",
+                    isActive ? "text-text" : "group-hover:text-text",
                   )}
                   aria-hidden
                 />
@@ -319,9 +322,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* System status card (sidebar open only) */}
         {sidebarOpen && (
-          <div className="mx-3.5 mb-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-            <div className="flex items-center gap-2 text-xs font-bold text-white uppercase tracking-wider">
-              <Zap className="h-3 w-3 text-white" />
+          <div className="mx-3.5 mb-4 rounded-xl border border-border bg-surface-overlay p-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-text uppercase tracking-wider">
+              <Zap className="h-3 w-3 text-text" />
               Compute Nodes
             </div>
             <div className="mt-3 space-y-2">
@@ -329,8 +332,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <span>Usage</span>
                 <span>82%</span>
               </div>
-              <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full w-[82%] bg-white" />
+              <div className="h-1 w-full bg-surface-overlay-strong rounded-full overflow-hidden">
+                <div className="h-full w-[82%] bg-accent-success" />
               </div>
             </div>
           </div>
@@ -339,11 +342,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* User */}
         <div
           className={cn(
-            "flex items-center gap-3 border-t border-white/[0.04] bg-white/[0.01] px-4 py-4",
+            "flex items-center gap-3 border-t border-border bg-surface-overlay px-4 py-4",
             !sidebarOpen && "justify-center",
           )}
         >
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/10">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-border">
             <UserButton
               afterSignOutUrl="/"
               appearance={{
@@ -355,7 +358,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {sidebarOpen && (
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-[11px] font-bold text-white">
+                <span className="truncate text-[11px] font-bold text-text">
                   {displayName}
                 </span>
                 <span className="truncate text-[9px] font-bold text-text-dim uppercase tracking-widest">
@@ -366,7 +369,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => setSettingsOpen(true)}
                 className={cn(
-                  "rounded-lg p-1.5 text-text-muted transition-all hover:bg-white/5 hover:text-text",
+                  "rounded-lg p-1.5 text-text-muted transition-all hover:bg-surface-overlay hover:text-text",
                   focusRing,
                 )}
                 aria-label="Open account settings"

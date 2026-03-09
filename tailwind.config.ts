@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         violet: {
-          DEFAULT: "#7C3AED",
-          light: "#a78bfa",
+          DEFAULT: "var(--violet)",
+          light: "var(--violet-light)",
         },
         cyan: {
-          DEFAULT: "#06B6D4",
-          light: "#22d3ee",
+          DEFAULT: "var(--cyan)",
+          light: "var(--cyan-light)",
         },
         bg: "var(--bg)",
         "bg-elevated": "var(--bg-elevated)",
@@ -23,6 +23,13 @@ const config: Config = {
         text: "var(--text)",
         "text-muted": "var(--text-muted)",
         "text-dim": "var(--text-dim)",
+        border: "var(--border)",
+        "border-hover": "var(--border-hover)",
+        "surface-overlay": "var(--surface-overlay)",
+        "surface-overlay-strong": "var(--surface-overlay-strong)",
+        "surface-invert": "var(--surface-invert)",
+        "accent-success": "var(--accent-success)",
+        "surface-invert-text": "var(--surface-invert-text)",
       },
       spacing: {
         content: "var(--space-content)",
