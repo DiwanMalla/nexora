@@ -1,28 +1,94 @@
+/**
+ * OmniAgent — The "best answer" agent that uses the Omni router to select
+ * a Groq model by prompt intent, streams the response via useChat, and
+ * displays routing metadata (model + reason) from response headers.
+ */
+
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ChatMessages } from "@/components/chat/ChatMessages";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { ChatMessages, type RoutingMetadata } from "@/components/chat/ChatMessages";
 import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
-import { getCompetingModelIds } from "@/lib/settings";
-import { randomUUID } from "@/lib/utils";
-import { ChatMessage } from "@/types";
+import type { ChatMessage } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
 
+function getTextFromParts(
+  parts: Array<{ type: string; text?: string }>,
+): string {
+  return parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("");
+}
+
+function uiMessagesToChatMessages(
+  messages: Array<{ id: string; role: string; parts: Array<{ type: string; text?: string }> }>,
+): ChatMessage[] {
+  return messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: getTextFromParts(m.parts),
+    }));
+}
+
 export function OmniAgent() {
-  const router = useRouter();
+  const { selectedAgent, setSelectedAgent } = useWorkspace();
   const searchParams = useSearchParams();
-  const idFromUrl = searchParams.get("id");
-
-  const { selectedModel, selectedAgent, setSelectedAgent } = useWorkspace();
-
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [routedModel, setRoutedModel] = useState<string | null>(null);
+  const [routedReason, setRoutedReason] = useState<string | null>(null);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/omni-agent",
+        fetch: async (url, init) => {
+          const res = await fetch(url, init);
+          if (res.ok) {
+            setRoutedModel(res.headers.get("X-Omni-Model"));
+            setRoutedReason(res.headers.get("X-Omni-Reason"));
+          }
+          return res;
+        },
+      }),
+    [],
+  );
+
+  const { messages: uiMessages, sendMessage, status } = useChat({ transport });
+
+  const messages = useMemo(
+    () => uiMessagesToChatMessages(uiMessages),
+    [uiMessages],
+  );
+  const isLoading = status === "submitted" || status === "streaming";
+  const isChatting = messages.length > 0 || isLoading;
+
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
-  const prevMessagesLengthRef = useRef(0);
+
+  // Auto-submit initial query from ?q= when opening /agents?type=omni&q=...
+  useEffect(() => {
+    const initQ = searchParams.get("q");
+    if (!initQ) return;
+    if (uiMessages.length > 0) return;
+
+    // Fire-and-forget; errors are handled inside useChat.
+    void sendMessage({ text: initQ });
+
+    // Remove ?q= so it doesn't re-trigger on refresh.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("q");
+      window.history.replaceState({}, "", url.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, uiMessages.length, sendMessage]);
 
   useEffect(() => {
     if (selectedAgent !== "omni") {
@@ -30,126 +96,30 @@ export function OmniAgent() {
     }
   }, [selectedAgent, setSelectedAgent]);
 
-  const updateUrl = useCallback(
-    (newId: string | null) => {
-      const params = new URLSearchParams();
-      params.set("type", "omni");
-      if (newId) params.set("id", newId);
-      router.replace(`/agents?${params.toString()}`, { scroll: false });
+  const handleInputChange = useCallback(
+    (
+      e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      setInput(e.target.value);
     },
-    [router],
+    [],
   );
 
-  useEffect(() => {
-    if (!idFromUrl && messages.length > 0) {
-      setMessages([]);
-    }
-  }, [idFromUrl]);
+  const handleSubmit = useCallback(
+    async (e?: React.FormEvent) => {
+      e?.preventDefault?.();
+      const text = input.trim();
+      if (!text || isLoading) return;
+      setInput("");
+      await sendMessage({ text });
+    },
+    [input, isLoading, sendMessage],
+  );
 
-  const handleInputChange = (
-    e:
-      | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLInputElement>,
-  ) => setInput(e.target.value);
-
-  const submitQuery = async (query: string) => {
-    if (!query || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: query,
-    };
-
-    const nextMessages = [...messages, userMessage];
-    setMessages(nextMessages);
-    setInput("");
-
-    if (!idFromUrl) {
-      const newId = randomUUID();
-      updateUrl(newId);
-    }
-
-    setIsLoading(true);
-    try {
-      const enabledModels = getCompetingModelIds();
-      const body: {
-        model: string;
-        messages: { role: string; content: string }[];
-        enabledModels?: string[];
-      } = {
-        model: selectedModel,
-        messages: nextMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      };
-      if (enabledModels.length > 0) body.enabledModels = enabledModels;
-
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) throw new Error("Unable to get a response.");
-
-      const payload = (await response.json()) as { text?: string; model?: string };
-      if (payload.model) {
-        console.log("[Nexora] Model from API:", payload.model);
-      }
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: payload.text?.trim() || "I couldn't generate a response.",
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content:
-            "Something went wrong while generating the reply. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await submitQuery(input.trim());
-  };
-
-  useEffect(() => {
-    const initQ = searchParams.get("q");
-    if (initQ && messages.length === 0 && !isLoading) {
-      submitQuery(initQ);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("q");
-      window.history.replaceState({}, "", url);
-    }
-  }, [searchParams, messages.length, isLoading]);
-
-  const isChatting = messages.length > 0;
-
-  useEffect(() => {
-    if (messages.length > prevMessagesLengthRef.current) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.role === "user") {
-        lastMessageRef.current?.scrollIntoView({
-          block: "start",
-          behavior: "smooth",
-        });
-      }
-    }
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages]);
+  const routingMetadata: RoutingMetadata | null =
+    routedModel != null && routedReason != null
+      ? { model: routedModel, reason: routedReason }
+      : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -164,6 +134,7 @@ export function OmniAgent() {
               isLoading={isLoading}
               agentId="omni"
               lastMessageRef={lastMessageRef}
+              routingMetadata={routingMetadata}
             />
           </div>
           <div

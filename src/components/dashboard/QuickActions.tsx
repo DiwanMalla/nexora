@@ -15,9 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+import { FOCUS_RING } from "@/lib/styles";
 
 type QuickAction = {
   href: string;
@@ -101,7 +99,7 @@ export function QuickActions() {
           href={href}
           className={cn(
             "group relative flex w-[72px] flex-col items-center gap-2.5 transition-all duration-300",
-            focusRing,
+            FOCUS_RING,
           )}
         >
           {/* Badge */}

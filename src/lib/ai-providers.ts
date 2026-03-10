@@ -21,6 +21,14 @@ export type AIProviderGroup = {
 export type AIProvider = {
   id: string;
   name: string;
+  /** Link to provider logo or single character/emoji */
+  logo?: string;
+  /** Tailwind color classes for the provider logo (e.g. bg-blue-500/20 text-blue-400) */
+  accent?: string;
+  /** Short summary of what this provider offers */
+  description?: string;
+  /** Whether this provider is shown by default in the UI */
+  isDefault?: boolean;
   /** Flat list of models (when no groups). */
   models?: AIModelEntry[];
   /** When set, models are grouped (e.g. Groq: OpenAI, Llama, Qwen…). Use for dropdown columns. */
@@ -31,6 +39,10 @@ export type AIProvider = {
 const openai: AIProvider = {
   id: "openai",
   name: "OpenAI",
+  logo: "O",
+  accent: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  description: "Industry-leading reasoning and multi-modal intelligence.",
+  isDefault: true,
   models: [
     {
       name: "GPT-5.4 (High)",
@@ -54,6 +66,10 @@ const openai: AIProvider = {
 const anthropic: AIProvider = {
   id: "anthropic",
   name: "Anthropic",
+  logo: "A",
+  accent: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  description: "Human-centric safe AI with excellent writing and coding skills.",
+  isDefault: true,
   models: [
     {
       name: "Claude 4.6 Opus",
@@ -72,6 +88,10 @@ const anthropic: AIProvider = {
 const google: AIProvider = {
   id: "google",
   name: "Google",
+  logo: "G",
+  accent: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  description: "Massive context windows and deeply integrated search capabilities.",
+  isDefault: true,
   models: [
     {
       name: "Gemini 3.1 Pro",
@@ -90,6 +110,10 @@ const google: AIProvider = {
 const meta: AIProvider = {
   id: "meta",
   name: "Meta",
+  logo: "M",
+  accent: "bg-blue-600/20 text-blue-500 border-blue-600/30",
+  description: "The world's leading open-weight models for fast inference.",
+  isDefault: true,
   models: [
     {
       name: "Llama 4 Scout",
@@ -194,6 +218,10 @@ const xiaomi: AIProvider = {
 const groq: AIProvider = {
   id: "groq",
   name: "Groq",
+  logo: "G",
+  accent: "bg-violet-500/20 text-violet-400 border-violet-500/30",
+  description: "The fastest inference engine for Llama, Qwen and Mistral.",
+  isDefault: true,
   groups: [
     {
       name: "OpenAI",

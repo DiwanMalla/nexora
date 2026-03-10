@@ -1,200 +1,78 @@
+/**
+ * AccountSettingsModal — The centralized control panel for user preferences.
+ *
+ * Refactored to decompose its massive 714-line structure into manageable
+ * tab components. Now handles global settings state and persistence only.
+ *
+ * Tabs:
+ *   - General (Appearance)
+ *   - AI Preferences
+ *   - Memory
+ *   - Subscription
+ *   - Profile
+ */
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
-import {
-  X,
-  Settings,
-  SlidersHorizontal,
-  Brain,
-  Crown,
-  User,
-  Monitor,
-  Sun,
-  Moon,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  UserCircle2,
-  Mail,
-  Phone,
-} from "lucide-react";
+import { X, Settings, SlidersHorizontal, Brain, Crown, User, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AVAILABLE_MODELS } from "@/lib/constants";
+import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 
-type AccountSettingsModalProps = {
-  open: boolean;
-  onClose: () => void;
-};
+// Tab Components
+import { AppearanceTab } from "./settings/AppearanceTab";
+import { AIPreferencesTab } from "./settings/AIPreferencesTab";
+import { MemoryTab } from "./settings/MemoryTab";
+import { SubscriptionTab } from "./settings/SubscriptionTab";
+import { ProfileTab } from "./settings/ProfileTab";
 
+// Types
 type SettingsTab = "general" | "ai" | "memory" | "subscription" | "profile";
 type ThemeMode = "system" | "light" | "dark";
 
-type AIProviderPref = {
+interface AIProviderPref {
   enabled: boolean;
   modelId: string;
-};
+}
 
-type UserSettings = {
+interface UserSettings {
   tab: SettingsTab;
   theme: ThemeMode;
-  language: "English";
   memoryEnabled: boolean;
+  personalization: string;
   profileName: string;
-  profilePhoneCountry: string;
-  profilePhoneNumber: string;
-  modelOrder: string[];
+  profileEmail: string;
   aiProviderPrefs: Record<string, AIProviderPref>;
-  /** Model IDs that compete in AI Chat; when 2+, API returns one consensus response */
   competingModelIds: string[];
-};
+  showSidebar: boolean;
+  animationsEnabled: boolean;
+}
 
-const STORAGE_KEY = "nexora.account.settings.v2";
+const STORAGE_KEY = "nexora.account.settings.v3";
 
 const navItems = [
-  { key: "general" as const, label: "General", icon: Settings },
-  { key: "ai" as const, label: "AI Preferences", icon: SlidersHorizontal },
+  { key: "general" as const, label: "Appearance", icon: Settings },
+  { key: "ai" as const, label: "AI & Models", icon: SlidersHorizontal },
   { key: "memory" as const, label: "Memory", icon: Brain },
   { key: "subscription" as const, label: "Subscription", icon: Crown },
-  { key: "profile" as const, label: "Profile", icon: User },
+  { key: "profile" as const, label: "Account", icon: User },
 ];
-
-// Providers with logo (letter/emoji) and their selectable models
-const AI_PROVIDERS: {
-  id: string;
-  name: string;
-  logo: string; // emoji or single char for logo circle
-  accent: string; // tailwind bg/ring for logo
-  models: { id: string; name: string }[];
-}[] = [
-  {
-    id: "chatgpt",
-    name: "ChatGPT",
-    logo: "C",
-    accent: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    models: [
-      { id: "gpt-5-mini", name: "GPT-5 mini" },
-      { id: "gpt-4o", name: "GPT-4o" },
-      { id: "gpt-4o-mini", name: "GPT-4o mini" },
-    ],
-  },
-  {
-    id: "groq",
-    name: "Groq",
-    logo: "G",
-    accent: "bg-violet-500/20 text-violet-400 border-violet-500/30",
-    models: [
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B" },
-      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B" },
-      { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B" },
-      { id: "openai/gpt-oss-20b", name: "GPT-OSS 20B" },
-    ],
-  },
-  {
-    id: "gemini",
-    name: "Gemini",
-    logo: "G",
-    accent: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    models: [
-      { id: "gemini-2.5-lite", name: "Gemini 2.5 Lite" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
-    ],
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    logo: "A",
-    accent: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    models: [
-      { id: "claude-haiku-4.5", name: "Claude Haiku 4.5" },
-      { id: "claude-sonnet-4", name: "Claude Sonnet 4" },
-      { id: "claude-opus-4", name: "Claude Opus 4" },
-    ],
-  },
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    logo: "D",
-    accent: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-    models: [
-      { id: "deepseek-chat", name: "DeepSeek Chat" },
-      { id: "deepseek-coder", name: "DeepSeek Coder" },
-    ],
-  },
-  {
-    id: "perplexity",
-    name: "Perplexity",
-    logo: "P",
-    accent: "bg-sky-500/20 text-sky-400 border-sky-500/30",
-    models: [
-      { id: "sonar", name: "Perplexity Sonar" },
-      { id: "sonar-pro", name: "Sonar Pro" },
-    ],
-  },
-  {
-    id: "xai",
-    name: "xAI",
-    logo: "x",
-    accent: "bg-slate-400/20 text-slate-300 border-slate-400/30",
-    models: [
-      { id: "grok-3-mini", name: "Grok 3 Mini" },
-      { id: "grok-3", name: "Grok 3" },
-    ],
-  },
-  {
-    id: "meta",
-    name: "Meta",
-    logo: "M",
-    accent: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
-    models: [
-      { id: "llama-4-scout", name: "Llama 4 Scout" },
-      { id: "llama-3.1-70b", name: "Llama 3.1 70B" },
-    ],
-  },
-  {
-    id: "moonshot",
-    name: "Moonshot",
-    logo: "K",
-    accent: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30",
-    models: [
-      { id: "kimi-k2", name: "Kimi K2" },
-    ],
-  },
-  {
-    id: "qwen",
-    name: "Qwen",
-    logo: "Q",
-    accent: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-    models: [
-      { id: "qwen-flash", name: "Qwen Flash" },
-      { id: "qwen3-32b", name: "Qwen3-32B" },
-    ],
-  },
-];
-
-const defaultProviderPref = (provider: (typeof AI_PROVIDERS)[0]): AIProviderPref => ({
-  enabled: provider.id === "groq",
-  modelId: provider.models[0]?.id ?? "",
-});
-
-/** Default: no competing models, so the chat dropdown selection is used. */
-const defaultCompetingModelIds: string[] = [];
 
 const defaultSettings: UserSettings = {
   tab: "general",
   theme: "system",
-  language: "English",
-  memoryEnabled: false,
+  memoryEnabled: true,
+  personalization: "",
   profileName: "",
-  profilePhoneCountry: "+61",
-  profilePhoneNumber: "",
-  modelOrder: [],
-  aiProviderPrefs: Object.fromEntries(
-    AI_PROVIDERS.map((p) => [p.id, defaultProviderPref(p)]),
-  ),
-  competingModelIds: defaultCompetingModelIds,
+  profileEmail: "",
+  aiProviderPrefs: {},
+  competingModelIds: [],
+  showSidebar: true,
+  animationsEnabled: true,
 };
+
+// ─── Utilities ──────────────────────────────────────────────────
 
 function applyTheme(theme: ThemeMode) {
   if (typeof document === "undefined") return;
@@ -206,504 +84,214 @@ function applyTheme(theme: ThemeMode) {
   root.setAttribute("data-theme", theme);
 }
 
-export function AccountSettingsModal({
-  open,
-  onClose,
-}: AccountSettingsModalProps) {
+// ─── Component ──────────────────────────────────────────────────
+
+interface AccountSettingsModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function AccountSettingsModal({ open, onClose }: AccountSettingsModalProps) {
   const { user } = useUser();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
-  const [languageOpen, setLanguageOpen] = useState(false);
   const [savePulse, setSavePulse] = useState(false);
 
-  const profileEmail = user?.primaryEmailAddress?.emailAddress || "";
-  const profileName = settings.profileName;
+  // Close on ESC
+  useKeyboardShortcut("Escape", onClose, open);
 
-  const prefs = settings.aiProviderPrefs ?? defaultSettings.aiProviderPrefs;
-
-  const toggleCompetingModel = (modelId: string) => {
-    setSettings((prev) => {
-      const ids = prev.competingModelIds ?? defaultCompetingModelIds;
-      const has = ids.includes(modelId);
-      const next = has
-        ? ids.filter((id) => id !== modelId)
-        : [...ids, modelId];
-      return { ...prev, competingModelIds: next };
-    });
-  };
-
-  const setProviderPref = (providerId: string, update: Partial<AIProviderPref>) => {
-    setSettings((prev) => ({
-      ...prev,
-      aiProviderPrefs: {
-        ...prev.aiProviderPrefs,
-        [providerId]: {
-          ...prev.aiProviderPrefs[providerId],
-          ...update,
-        },
-      },
-    }));
-  };
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  // ─── Load / Save ──────────────────────────────────────────────
 
   useEffect(() => {
     if (!open) return;
     try {
-      const raw =
-        window.localStorage.getItem(STORAGE_KEY) ??
-        window.localStorage.getItem("nexora.account.settings.v1");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<UserSettings>;
-      const merged: Partial<UserSettings> = { ...parsed };
-      if (!merged.aiProviderPrefs && "modelOrder" in parsed) {
-        merged.aiProviderPrefs = defaultSettings.aiProviderPrefs;
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setSettings((prev) => ({ ...prev, ...parsed }));
+        if (parsed.theme) applyTheme(parsed.theme);
       }
-      if (!Array.isArray(merged.competingModelIds)) {
-        merged.competingModelIds = defaultSettings.competingModelIds;
-      }
-      setSettings((prev) => ({ ...defaultSettings, ...prev, ...merged }));
-      if (parsed.theme) applyTheme(parsed.theme);
     } catch {
       setSettings(defaultSettings);
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    setSettings((prev) => {
-      if (prev.profileName.trim().length > 0) return prev;
-      const fallbackName =
-        user?.fullName ||
-        [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
-        "Diwan Malla";
-      return { ...prev, profileName: fallbackName };
-    });
-  }, [open, user?.fullName, user?.firstName, user?.lastName]);
-
-  useEffect(() => {
-    if (!open) return;
-    applyTheme(settings.theme);
-  }, [open, settings.theme]);
-
-  const handleSave = () => {
-    const payload: UserSettings = {
-      ...settings,
-      aiProviderPrefs: prefs,
-      competingModelIds: settings.competingModelIds,
-    };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  const handleSave = useCallback(() => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyTheme(settings.theme);
     setSavePulse(true);
-    window.setTimeout(() => setSavePulse(false), 900);
-  };
+    setTimeout(() => setSavePulse(false), 900);
+  }, [settings]);
 
-  const titleByTab: Record<SettingsTab, { title: string; subtitle: string }> = {
-    general: {
-      title: "General",
-      subtitle: "Manage the look and feel of the platform",
-    },
-    ai: {
-      title: "AI model preferences",
-      subtitle: "Manage and reorder your AI models",
-    },
-    memory: {
-      title: "Memory",
-      subtitle:
-        "Let the assistant remember important details across chats when available",
-    },
-    subscription: {
-      title: "Subscription",
-      subtitle: "Subscription management will be added in a later update",
-    },
-    profile: {
-      title: "Profile information",
-      subtitle: "Manage your basic profile details",
-    },
-  };
+  // Apply theme immediately when changed
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
+
+  // Sync Clerk user name if empty
+  useEffect(() => {
+    if (open && user && !settings.profileName) {
+      setSettings((prev) => ({
+        ...prev,
+        profileName: user.fullName || "",
+        profileEmail: user.primaryEmailAddress?.emailAddress || "",
+      }));
+    }
+  }, [open, user, settings.profileName]);
 
   if (!open) return null;
 
+  // ─── Actions ──────────────────────────────────────────────────
+
+  const updateSettings = (update: Partial<UserSettings>) => {
+    setSettings((prev) => ({ ...prev, ...update }));
+  };
+
+  const handleProviderPrefChange = (id: string, update: Partial<AIProviderPref>) => {
+    setSettings((prev) => ({
+      ...prev,
+      aiProviderPrefs: {
+        ...prev.aiProviderPrefs,
+        [id]: { ...(prev.aiProviderPrefs[id] || { enabled: true, modelId: "" }), ...update },
+      },
+    }));
+  };
+
+  const toggleCompetingModel = (modelId: string) => {
+    setSettings((prev) => {
+      const current = prev.competingModelIds || [];
+      const has = current.includes(modelId);
+      return {
+        ...prev,
+        competingModelIds: has ? current.filter((id) => id !== modelId) : [...current, modelId],
+      };
+    });
+  };
+
+  // ─── Render ───────────────────────────────────────────────────
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <button
-        type="button"
-        aria-label="Close settings"
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-500"
         onClick={onClose}
-        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
       />
 
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label="Account settings"
-        className="relative grid h-[620px] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-3xl border border-border bg-bg-elevated shadow-2xl md:grid-cols-[280px_1fr]"
-      >
+      {/* Modal Card */}
+      <section className="relative flex h-[680px] w-full max-w-5xl overflow-hidden rounded-[2.5rem] border border-white/10 bg-bg-elevated shadow-[0_32px_64px_rgba(0,0,0,0.5)] animate-in zoom-in-[0.95] fade-in duration-300">
         <button
-          type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 z-10 rounded-lg p-1.5 text-text-muted transition hover:bg-surface-overlay-strong hover:text-text"
-          aria-label="Close"
+          className="absolute right-8 top-8 z-20 rounded-full p-2 text-text-dim transition-all hover:bg-surface-overlay hover:text-text active:scale-90"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <aside className="border-b border-border bg-surface-overlay p-6 md:border-b-0 md:border-r">
-          <h2 className="text-3xl font-semibold tracking-tight text-text">
-            Settings
-          </h2>
+        {/* Sidebar Navigation */}
+        <aside className="hidden w-[300px] flex-col border-r border-white/5 bg-surface-overlay/30 p-8 md:flex">
+          <div className="mb-10 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet/20 border border-violet/30">
+              <Settings className="h-5 w-5 text-violet-light" />
+            </div>
+            <h2 className="text-xl font-black uppercase tracking-widest text-white">
+              System
+            </h2>
+          </div>
 
-          <nav className="mt-6 space-y-2">
+          <nav className="space-y-2">
             {navItems.map(({ key, label, icon: Icon }) => (
               <button
-                key={label}
-                type="button"
-                onClick={() => setSettings((prev) => ({ ...prev, tab: key }))}
+                key={key}
+                onClick={() => updateSettings({ tab: key })}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-base font-medium transition",
+                  "flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left transition-all duration-300",
                   settings.tab === key
-                    ? "bg-surface-overlay-strong text-text"
+                    ? "bg-violet text-white shadow-lg shadow-violet/20"
                     : "text-text-muted hover:bg-surface-overlay hover:text-text",
                 )}
               >
-                <Icon className="h-4.5 w-4.5" />
-                {label}
+                <Icon className="h-5 w-5" />
+                <span className="text-xs font-bold uppercase tracking-[0.15em]">
+                  {label}
+                </span>
               </button>
             ))}
           </nav>
+
+          <p className="mt-auto text-center text-[10px] font-bold uppercase tracking-widest text-slate-600">
+            Nexora v0.1.0-alpha
+          </p>
         </aside>
 
-        <div className="flex h-full flex-col p-7 sm:p-8">
-          <div>
-            <h3 className="text-3xl font-semibold tracking-tight text-text">
-              {titleByTab[settings.tab].title}
-            </h3>
-            <p className="mt-1 text-lg text-text-muted">
-              {titleByTab[settings.tab].subtitle}
-            </p>
-          </div>
-
-          <div className="mt-9 flex-1 overflow-y-auto pr-1">
+        {/* Tab Content */}
+        <div className="flex flex-1 flex-col overflow-hidden bg-bg-elevated p-10 lg:p-14">
+          <div className="flex-1 overflow-y-auto pr-4 scrollbar-thin">
             {settings.tab === "general" && (
-              <div className="space-y-8">
-                <div>
-                  <p className="mb-3 text-xl font-medium text-text">
-                    Appearance
-                  </p>
-                  <div className="grid grid-cols-3 rounded-full border border-border bg-surface-overlay p-1.5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, theme: "system" }))
-                      }
-                      className={cn(
-                        "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
-                        settings.theme === "system"
-                          ? "bg-surface-invert font-semibold text-surface-invert-text"
-                          : "font-medium text-text-muted",
-                      )}
-                    >
-                      <Monitor className="h-4 w-4" />
-                      System
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, theme: "light" }))
-                      }
-                      className={cn(
-                        "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
-                        settings.theme === "light"
-                          ? "bg-surface-invert font-semibold text-surface-invert-text"
-                          : "font-medium text-text-muted",
-                      )}
-                    >
-                      <Sun className="h-4 w-4" />
-                      Light
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSettings((prev) => ({ ...prev, theme: "dark" }))
-                      }
-                      className={cn(
-                        "flex items-center justify-center gap-2 rounded-full px-3 py-2 text-base transition",
-                        settings.theme === "dark"
-                          ? "bg-surface-invert font-semibold text-surface-invert-text"
-                          : "font-medium text-text-muted",
-                      )}
-                    >
-                      <Moon className="h-4 w-4" />
-                      Dark
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="mb-3 text-xl font-medium text-text">
-                    Language Preferences
-                  </p>
-                  <div className="rounded-2xl border border-white/15 bg-black/20 px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() => setLanguageOpen((prev) => !prev)}
-                      className="flex w-full items-center justify-between text-left"
-                    >
-                      <span className="text-xl text-white/90">
-                        {settings.language}
-                      </span>
-                      {languageOpen ? (
-                        <ChevronUp className="h-5 w-5 text-text-muted" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5 text-text-muted" />
-                      )}
-                    </button>
-                    {languageOpen && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSettings((prev) => ({
-                            ...prev,
-                            language: "English",
-                          }));
-                          setLanguageOpen(false);
-                        }}
-                        className="mt-3 flex w-full items-center justify-between rounded-xl bg-surface-overlay px-3 py-2 text-left text-base font-medium text-text"
-                      >
-                        English
-                        <Check className="h-4 w-4 text-violet-light" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <AppearanceTab
+                theme={settings.theme}
+                onThemeChange={(theme) => updateSettings({ theme })}
+                showSidebar={settings.showSidebar}
+                onShowSidebarChange={(showSidebar) => updateSettings({ showSidebar })}
+                animationsEnabled={settings.animationsEnabled}
+                onAnimationsEnabledChange={(animationsEnabled) => updateSettings({ animationsEnabled })}
+              />
             )}
 
             {settings.tab === "ai" && (
-              <div className="space-y-4">
-                <p className="text-sm text-text-muted">
-                  Turn providers on or off and choose which model to use for each.
-                </p>
-                <div className="space-y-2">
-                  {AI_PROVIDERS.map((provider) => {
-                    const pref = prefs[provider.id] ?? defaultProviderPref(provider);
-                    return (
-                      <div
-                        key={provider.id}
-                        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-overlay px-4 py-3"
-                      >
-                        {/* Logo */}
-                        <div
-                          className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-lg font-bold",
-                            provider.accent,
-                          )}
-                        >
-                          {provider.logo}
-                        </div>
-                        {/* Provider name */}
-                        <span className="min-w-[100px] text-base font-semibold text-text">
-                          {provider.name}
-                        </span>
-                        {/* On/off toggle */}
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={pref.enabled}
-                          onClick={() =>
-                            setProviderPref(provider.id, {
-                              enabled: !pref.enabled,
-                            })
-                          }
-                          className={cn(
-                            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#12121A]",
-                            pref.enabled ? "bg-violet-500" : "bg-white/20",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "inline-block h-5 w-5 rounded-full bg-white transition-transform",
-                              pref.enabled ? "translate-x-5" : "translate-x-0.5",
-                            )}
-                          />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="rounded-2xl border border-border bg-surface-overlay p-4">
-                  <p className="mb-1 text-sm font-semibold text-text">
-                    Competing models (best response)
-                  </p>
-                  <p className="mb-3 text-xs text-text-muted">
-                    When multiple are selected, AI Chat runs these in parallel and combines answers into one agreed response.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {AVAILABLE_MODELS.map((m) => {
-                      const ids = settings.competingModelIds ?? defaultCompetingModelIds;
-                      const checked = ids.includes(m.id);
-                      return (
-                        <label
-                          key={m.id}
-                          className={cn(
-                            "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition",
-                            checked
-                              ? "border-violet-500/40 bg-violet-500/10 text-text"
-                              : "border-border bg-surface-overlay text-text-muted hover:bg-surface-overlay-strong",
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCompetingModel(m.id)}
-                            className="h-4 w-4 rounded border-white/20 bg-black/40 text-violet-500 focus:ring-violet-500"
-                          />
-                          <span>{m.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+              <AIPreferencesTab
+                prefs={settings.aiProviderPrefs}
+                onProviderPrefChange={handleProviderPrefChange}
+                competingModelIds={settings.competingModelIds}
+                onToggleCompetingModel={toggleCompetingModel}
+              />
             )}
 
             {settings.tab === "memory" && (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-border bg-surface-overlay p-5">
-                  <p className="text-lg font-semibold text-text">
-                    Enable account memory
-                  </p>
-                  <p className="mt-1 text-sm text-text-muted">
-                    When enabled, Nexora can remember useful context for better
-                    responses.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        memoryEnabled: !prev.memoryEnabled,
-                      }))
-                    }
-                    className={cn(
-                      "mt-5 flex w-14 items-center rounded-full p-1 transition",
-                      settings.memoryEnabled ? "bg-violet" : "bg-surface-overlay-strong",
-                    )}
-                    aria-pressed={settings.memoryEnabled}
-                    aria-label="Enable account memory"
-                  >
-                    <span
-                      className={cn(
-                        "h-5 w-5 rounded-full bg-surface-invert transition-transform",
-                        settings.memoryEnabled
-                          ? "translate-x-7"
-                          : "translate-x-0",
-                      )}
-                    />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {settings.tab === "profile" && (
-              <div className="space-y-5">
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
-                    <UserCircle2 className="h-4 w-4" />
-                    Full name
-                  </span>
-                  <input
-                    value={profileName}
-                    onChange={(event) =>
-                      setSettings((prev) => ({
-                        ...prev,
-                        profileName: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text outline-none transition focus:border-violet"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
-                    <Phone className="h-4 w-4" />
-                    Phone
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={settings.profilePhoneCountry}
-                      onChange={(event) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          profilePhoneCountry: event.target.value,
-                        }))
-                      }
-                      className="w-20 rounded-xl border border-border bg-surface-overlay px-3 py-3 text-base text-text outline-none transition focus:border-violet"
-                    />
-                    <input
-                      value={settings.profilePhoneNumber}
-                      onChange={(event) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          profilePhoneNumber: event.target.value,
-                        }))
-                      }
-                      placeholder="e.g. 98765 43210"
-                      className="flex-1 rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text outline-none transition placeholder:text-text-dim focus:border-violet"
-                    />
-                  </div>
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-muted">
-                    <Mail className="h-4 w-4" />
-                    Email
-                  </span>
-                  <input
-                    readOnly
-                    value={profileEmail}
-                    className="w-full rounded-xl border border-border bg-surface-overlay px-4 py-3 text-base text-text-muted outline-none"
-                  />
-                </label>
-              </div>
+              <MemoryTab
+                personalization={settings.personalization}
+                onPersonalizationChange={(personalization) => updateSettings({ personalization })}
+                onClearMemory={() => updateSettings({ personalization: "" })}
+              />
             )}
 
             {settings.tab === "subscription" && (
-              <div className="rounded-2xl border border-border bg-surface-overlay p-6 text-center">
-                <p className="text-lg font-semibold text-text">
-                  Subscription settings coming soon
-                </p>
-                <p className="mt-1 text-sm text-text-muted">
-                  We will add plan management and billing controls here later.
-                </p>
-              </div>
+              <SubscriptionTab
+                currentPlan="free"
+                onUpgrade={() => {}}
+              />
+            )}
+
+            {settings.tab === "profile" && (
+              <ProfileTab
+                displayName={settings.profileName}
+                onDisplayNameChange={(profileName) => updateSettings({ profileName })}
+                email={settings.profileEmail}
+                onEmailChange={(profileEmail) => updateSettings({ profileEmail })}
+              />
             )}
           </div>
 
-          <div className="mt-auto border-t border-white/[0.08] pt-5">
+          {/* Footer Save Button */}
+          <div className="mt-8 border-t border-white/5 pt-8">
             <button
-              type="button"
               onClick={handleSave}
               className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-full py-3 text-xl font-semibold transition",
+                "group relative flex w-full items-center justify-center gap-3 overflow-hidden rounded-[1.25rem] py-4 transition-all duration-500 active:scale-[0.98]",
                 savePulse
-                  ? "bg-emerald-300 text-[#0f1218]"
-                  : "bg-surface-overlay-strong text-text hover:bg-surface-invert hover:text-surface-invert-text",
+                  ? "bg-emerald-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                  : "bg-surface-invert text-surface-invert-text hover:shadow-[0_10px_20px_rgba(255,255,255,0.05)]",
               )}
             >
-              <Check className="h-5 w-5" />
-              {savePulse ? "Saved" : "Save"}
+              <div
+                className={cn(
+                  "flex items-center gap-3 transition-transform duration-500",
+                  savePulse ? "scale-105" : "group-hover:translate-x-1",
+                )}
+              >
+                <Check className={cn("h-5 w-5 stroke-[3px]", savePulse ? "animate-bounce" : "")} />
+                <span className="text-xs font-black uppercase tracking-widest">
+                  {savePulse ? "Config Sync Success" : "Apply Changes"}
+                </span>
+              </div>
             </button>
           </div>
         </div>

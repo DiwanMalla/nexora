@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { MessageCircle, Search, Clock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+import { FOCUS_RING } from "@/lib/styles";
 
 type RecentItem = {
   id: string;
@@ -52,7 +50,7 @@ export function RecentActivity() {
           href="/workspace/history"
           className={cn(
             "flex items-center gap-1 text-[13px] font-medium text-text-muted transition hover:text-text",
-            focusRing,
+            FOCUS_RING,
           )}
         >
           See all
@@ -69,7 +67,7 @@ export function RecentActivity() {
             }
             className={cn(
               "group flex items-center gap-3 px-4 py-3 transition hover:bg-surface-overlay",
-              focusRing,
+              FOCUS_RING,
             )}
           >
             <span

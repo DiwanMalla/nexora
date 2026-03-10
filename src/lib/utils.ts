@@ -25,3 +25,27 @@ export function randomUUID(): string {
   const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
+/**
+ * Removes <think>...</think> blocks from model output so they are not shown in the UI.
+ * Also removes any trailing unclosed <think> (streaming).
+ */
+export function stripThinkBlocks(text: string): string {
+  if (!text || typeof text !== "string") return text;
+  let out = text;
+  // Remove complete <think>...</think> blocks (non-greedy, match newlines)
+  out = out.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // Remove trailing unclosed <think>... (streaming)
+  out = out.replace(/<think>[\s\S]*$/i, "").trim();
+  return out;
+}
+
+/**
+ * True if the text contains an unclosed <think> tag (model is still "thinking").
+ */
+export function hasUnclosedThink(text: string): boolean {
+  if (!text || typeof text !== "string") return false;
+  const open = /<think>/i.test(text);
+  const closed = /<\/think>/i.test(text);
+  return open && !closed;
+}

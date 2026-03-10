@@ -44,8 +44,7 @@ const mainNav = [
   { href: "/drive", label: "AI Drive", icon: FolderOpen },
 ];
 
-const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+import { FOCUS_RING } from "@/lib/styles";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -123,7 +122,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className={cn(
               "ml-auto rounded-lg p-1.5 text-text-muted transition-all hover:bg-surface-overlay hover:text-text active:scale-90",
-              focusRing,
+              FOCUS_RING,
             )}
             aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
@@ -143,7 +142,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all duration-200",
               "bg-surface-invert text-surface-invert-text",
               "shadow-sm hover:opacity-90 active:scale-95",
-              focusRing,
+              FOCUS_RING,
               !sidebarOpen && "justify-center px-0",
             )}
           >
@@ -177,7 +176,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setModelModalOpen(true)}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-text-muted hover:bg-surface-overlay hover:text-text",
-              focusRing,
+              FOCUS_RING,
               !sidebarOpen && "justify-center px-0"
             )}
           >
@@ -196,7 +195,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
               className={cn(
                 "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-surface-overlay hover:text-text",
-                focusRing,
+                FOCUS_RING,
                 !sidebarOpen && "justify-center px-0"
               )}
             >
@@ -246,7 +245,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               onClick={() => setHistoryDropdownOpen(!historyDropdownOpen)}
               className={cn(
                 "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-surface-overlay hover:text-text",
-                focusRing,
+                FOCUS_RING,
                 !sidebarOpen && "justify-center px-0"
               )}
             >
@@ -299,7 +298,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   isActive
                     ? "bg-surface-overlay-strong text-text shadow-sm"
                     : "text-text-muted hover:bg-surface-overlay hover:text-text",
-                  focusRing,
+                  FOCUS_RING,
                   !sidebarOpen && "justify-center px-0",
                 )}
                 aria-current={isActive ? "page" : undefined}
@@ -370,7 +369,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 onClick={() => setSettingsOpen(true)}
                 className={cn(
                   "rounded-lg p-1.5 text-text-muted transition-all hover:bg-surface-overlay hover:text-text",
-                  focusRing,
+                  FOCUS_RING,
                 )}
                 aria-label="Open account settings"
               >

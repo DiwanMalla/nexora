@@ -6,15 +6,12 @@ import {
   Code2,
   FileText,
   Sparkles,
-  ArrowRight,
   Monitor,
   Lightbulb,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]";
+import { FOCUS_RING } from "@/lib/styles";
 
 type AgentTile = {
   href: string;
@@ -101,7 +98,7 @@ export function AgentTiles() {
             className={cn(
               "group relative flex flex-col items-center gap-4 overflow-hidden rounded-xl border border-white/5 bg-white/[0.02] p-6 text-center transition-all duration-300",
               "hover:border-white/10 hover:bg-white/[0.04]",
-              focusRing,
+              FOCUS_RING,
             )}
           >
             {/* Badge */}
