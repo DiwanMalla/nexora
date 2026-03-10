@@ -19,6 +19,14 @@ export interface RoutingMetadata {
   reason: string;
 }
 
+export interface ReplyImage {
+  url: string;
+  title: string;
+  sourceUrl?: string;
+}
+
+export type ReplyImageState = "idle" | "loading" | "done" | "error";
+
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -27,6 +35,10 @@ interface ChatMessagesProps {
   lastMessageRef?: React.RefObject<HTMLDivElement | null>;
   /** Optional routing info (e.g. OmniAgent model + reason) shown below last assistant message. */
   routingMetadata?: RoutingMetadata | null;
+  replyImages?: ReplyImage[];
+  replyImageQuery?: string | null;
+  replyImageState?: ReplyImageState;
+  replyImageError?: string | null;
 }
 
 /** Renders a single user message bubble. */
@@ -48,10 +60,12 @@ function AssistantMessage({
   content,
   model,
   showThinkingIndicator,
+  topContent,
 }: {
   content: string;
   model?: string;
   showThinkingIndicator?: boolean;
+  topContent?: React.ReactNode;
 }) {
   const visibleContent = stripThinkBlocks(content);
   return (
@@ -74,9 +88,13 @@ function AssistantMessage({
         </div>
       )}
 
+      {topContent}
+
       {/* Markdown body (think blocks stripped) */}
       <div className="typography-prose max-w-none pl-11">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{visibleContent || "\u00A0"}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {visibleContent || "\u00A0"}
+        </ReactMarkdown>
       </div>
 
       {/* Actions + model badge */}
@@ -95,11 +113,89 @@ function AssistantMessage({
   );
 }
 
+function AssistantReplyImages({
+  images,
+  query,
+  status,
+  error,
+}: {
+  images: ReplyImage[];
+  query: string | null;
+  status: ReplyImageState;
+  error: string | null;
+}) {
+  if (status === "idle" && images.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="ml-11 rounded-2xl border border-border bg-bg-card/80 p-4 backdrop-blur-sm">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="text-[var(--text-sm)] font-semibold text-text">
+          Images
+        </div>
+        {query ? (
+          <div className="text-[10px] uppercase tracking-[0.14em] text-text-dim">
+            {query}
+          </div>
+        ) : null}
+        {status === "loading" ? (
+          <div className="ml-auto text-[var(--text-xs)] text-text-muted">
+            Loading related images...
+          </div>
+        ) : null}
+      </div>
+
+      {status === "error" && error ? (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-[var(--text-xs)] text-red-300">
+          {error}
+        </div>
+      ) : null}
+
+      {images.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {images.map((image, index) => (
+            <a
+              key={`${image.url}-${index}`}
+              href={image.sourceUrl ?? image.url}
+              target="_blank"
+              rel="noreferrer"
+              className="group overflow-hidden rounded-xl border border-border bg-surface-overlay/30 transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-500/30 hover:bg-surface-overlay/50"
+            >
+              <div className="aspect-[16/10] overflow-hidden bg-surface-overlay/50">
+                <img
+                  src={image.url}
+                  alt={image.title}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="p-3">
+                <div className="line-clamp-2 text-[var(--text-sm)] font-medium text-text">
+                  {image.title}
+                </div>
+                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-text-dim">
+                  Open source
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ChatMessages({
   messages,
   isLoading,
   lastMessageRef,
   routingMetadata,
+  replyImages = [],
+  replyImageQuery = null,
+  replyImageState = "idle",
+  replyImageError = null,
 }: ChatMessagesProps) {
   if (messages.length === 0) return null;
 
@@ -131,6 +227,16 @@ export function ChatMessages({
                 content={m.content}
                 model={m.model}
                 showThinkingIndicator={showThinking}
+                topContent={
+                  isLast ? (
+                    <AssistantReplyImages
+                      images={replyImages}
+                      query={replyImageQuery}
+                      status={replyImageState}
+                      error={replyImageError}
+                    />
+                  ) : undefined
+                }
               />
             )}
           </div>

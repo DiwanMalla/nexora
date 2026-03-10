@@ -15,7 +15,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { tavilySearch } from "@/lib/tavily";
 import { getModelNameByApiId } from "@/lib/ai-providers";
-import { getNexoraSystemPrompt, getNexoraSystemPromptWithModel } from "@/lib/nexora-system-prompt";
+import {
+  getNexoraSystemPrompt,
+  getNexoraSystemPromptWithModel,
+} from "@/lib/nexora-system-prompt";
 import type { ChatAPIResponse } from "@/types";
 
 export const runtime = "edge";
@@ -163,7 +166,7 @@ export async function POST(req: Request) {
           execute: async ({ query }: { query: string }) => {
             try {
               const result = await tavilySearch(query);
-              return result as Record<string, unknown>;
+              return result as unknown as Record<string, unknown>;
             } catch (err: unknown) {
               const message =
                 err instanceof Error ? err.message : "Search failed.";
