@@ -55,6 +55,16 @@ interface PipelineData {
   factCheckVerified: boolean | null;
 }
 
+function decodeHeaderValue(value: string | null): string | null {
+  if (!value) return null;
+
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 // ─── Pipeline step configuration ────────────────────────────────────────────
 
 const PIPELINE_STEPS = [
@@ -274,13 +284,17 @@ export function OmniAgent() {
           const res = await fetch(url, init);
           if (res.ok) {
             setRoutedModel(res.headers.get("X-Omni-Model"));
-            setRoutedReason(res.headers.get("X-Omni-Reason"));
+            setRoutedReason(
+              decodeHeaderValue(res.headers.get("X-Omni-Reason")),
+            );
 
             // Parse pipeline metadata from header
             const pipelineHeader = res.headers.get("X-Pipeline-Data");
             if (pipelineHeader) {
               try {
-                const data = JSON.parse(pipelineHeader) as PipelineData;
+                const data = JSON.parse(
+                  decodeHeaderValue(pipelineHeader) ?? pipelineHeader,
+                ) as PipelineData;
                 setPipelineData(data);
               } catch {
                 // ignore parse errors

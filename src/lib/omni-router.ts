@@ -60,7 +60,7 @@ export const OMNI_MODELS = {
   coding: "qwen/qwen3-32b",
   heavyReasoning: "openai/gpt-oss-120b",
   complexWriting: "llama-3.3-70b-versatile",
-  simple: "openai/gpt-oss-20b",
+  simple: "llama-3.1-8b-instant",
 } as const;
 
 /**

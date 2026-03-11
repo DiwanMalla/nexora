@@ -56,6 +56,10 @@ interface PipelineStep {
   durationMs?: number;
 }
 
+function encodeHeaderValue(value: string): string {
+  return encodeURIComponent(value);
+}
+
 // ─── Query analysis ─────────────────────────────────────────────────────────
 
 async function analyzeQuery(
@@ -468,15 +472,17 @@ export async function POST(req: Request) {
     });
 
     // Encode pipeline metadata in header for the client-side tracker
-    const pipelineHeaderValue = JSON.stringify({
-      steps: pipelineSteps,
-      totalMs: totalPipelineMs,
-      category: analysis.category,
-      webSearchUsed: analysis.needsWebSearch,
-      sourcesCount: searchResponse?.results.length ?? 0,
-      imagesCount: 0,
-      factCheckVerified: factCheckResult?.verified ?? null,
-    });
+    const pipelineHeaderValue = encodeHeaderValue(
+      JSON.stringify({
+        steps: pipelineSteps,
+        totalMs: totalPipelineMs,
+        category: analysis.category,
+        webSearchUsed: analysis.needsWebSearch,
+        sourcesCount: searchResponse?.results.length ?? 0,
+        imagesCount: 0,
+        factCheckVerified: factCheckResult?.verified ?? null,
+      }),
+    );
 
     console.log("  ✨ Streaming response to client...\n");
 
@@ -484,7 +490,7 @@ export async function POST(req: Request) {
       stream,
       headers: {
         "X-Omni-Model": modelId,
-        "X-Omni-Reason": reason,
+        "X-Omni-Reason": encodeHeaderValue(reason),
         "X-Pipeline-Data": pipelineHeaderValue,
       },
     });
