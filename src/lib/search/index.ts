@@ -1,4 +1,5 @@
 export { braveSearch } from "./brave";
+export { handleLongQuery, localLLM, searchTavily } from "./long-query";
 export { mergeSearchResponses } from "./merge";
 export { tavilyImageSearch, tavilySearch } from "./tavily";
 
