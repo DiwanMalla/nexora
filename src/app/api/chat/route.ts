@@ -13,7 +13,7 @@ import { generateText, tool } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { tavilySearch } from "@/lib/tavily";
+import { tavilySearch } from "@/lib/search";
 import { getModelNameByApiId } from "@/lib/ai-providers";
 import {
   getNexoraSystemPrompt,

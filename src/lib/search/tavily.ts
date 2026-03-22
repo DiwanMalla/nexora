@@ -1,32 +1,9 @@
-export interface TavilySearchOptions {
-  maxResults?: number;
-  includeImages?: boolean;
-}
-
-export interface TavilyImageResult {
-  url: string;
-  title: string;
-  sourceUrl?: string;
-}
-
-export interface TavilyResult {
-  title: string;
-  url: string;
-  content: string;
-  score: number;
-}
-
-export interface TavilySearchResponse {
-  answer?: string;
-  results: TavilyResult[];
-  images?: string[];
-  query: string;
-}
+import type { ImageResult, SearchOptions, SearchResponse } from "./types";
 
 export async function tavilySearch(
   query: string,
-  options?: TavilySearchOptions,
-): Promise<TavilySearchResponse> {
+  options?: SearchOptions,
+): Promise<SearchResponse> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     throw new Error("Missing TAVILY_API_KEY environment variable.");
@@ -44,7 +21,7 @@ export async function tavilySearch(
       include_answer: true,
       include_images: options?.includeImages ?? false,
       include_raw_content: false,
-      max_results: options?.maxResults || 5,
+      max_results: options?.maxResults ?? 5,
     }),
   });
 
@@ -54,13 +31,13 @@ export async function tavilySearch(
   }
 
   const data = await response.json();
-  return data as TavilySearchResponse;
+  return data as SearchResponse;
 }
 
 export async function tavilyImageSearch(
   query: string,
-  options?: TavilySearchOptions,
-): Promise<TavilyImageResult[]> {
+  options?: SearchOptions,
+): Promise<ImageResult[]> {
   const response = await tavilySearch(query, {
     ...options,
     includeImages: true,

@@ -1,4 +1,4 @@
-import { tavilyImageSearch } from "@/lib/tavily";
+import { tavilyImageSearch } from "@/lib/search";
 
 type ImageSearchBody = {
   query?: string;
