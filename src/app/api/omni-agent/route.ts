@@ -18,7 +18,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   streamText,
-  generateObject,
+  generateText,
 } from "ai";
 import { z } from "zod";
 import { createGroq } from "@ai-sdk/groq";
@@ -66,28 +66,29 @@ async function analyzeQuery(
   question: string,
   model: any,
 ): Promise<QueryAnalysis & { recommendedModel: string }> {
+  const analysisSchema = z.object({
+    category: z.enum([
+      "coding",
+      "technical",
+      "research",
+      "current-events",
+      "creative",
+      "general",
+    ]),
+    needsWebSearch: z.boolean(),
+    searchQuery: z.string(),
+    reasoning: z.string(),
+    recommendedModel: z.enum([
+      "coding",
+      "heavyReasoning",
+      "complexWriting",
+      "simple",
+    ]),
+  });
+
   try {
-    const { object } = await generateObject({
+    const { text } = await generateText({
       model,
-      schema: z.object({
-        category: z.enum([
-          "coding",
-          "technical",
-          "research",
-          "current-events",
-          "creative",
-          "general",
-        ]),
-        needsWebSearch: z.boolean(),
-        searchQuery: z.string(),
-        reasoning: z.string(),
-        recommendedModel: z.enum([
-          "coding",
-          "heavyReasoning",
-          "complexWriting",
-          "simple",
-        ]),
-      }),
       system: `You are the OmniAgent Query Classifier. Your job is to analyze the user's intent and determine the best execution path.
       
       Categories:
@@ -109,9 +110,25 @@ async function analyzeQuery(
       - "coding": for all code-related tasks.
       - "heavyReasoning": for complex logic, system design, or deep math.
       - "complexWriting": for creative pieces or long-form synthesis.
-      - "simple": for everything else.`,
+      - "simple": for everything else.
+
+      Return ONLY valid JSON with this exact shape:
+      {
+        "category": "coding|technical|research|current-events|creative|general",
+        "needsWebSearch": boolean,
+        "searchQuery": string,
+        "reasoning": string,
+        "recommendedModel": "coding|heavyReasoning|complexWriting|simple"
+      }
+      Do not include markdown, code fences, or extra keys.`,
       prompt: `User Message: "${question}"`,
     });
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("Classifier returned non-JSON response");
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const object = analysisSchema.parse(parsed);
 
     return object;
   } catch (err) {
