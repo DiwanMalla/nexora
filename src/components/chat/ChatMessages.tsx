@@ -30,6 +30,7 @@ export type ReplyImageState = "idle" | "loading" | "done" | "error";
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  loadingHint?: string;
   agentId?: string;
   /** Ref attached to the last message so parent can scroll it into view. */
   lastMessageRef?: React.RefObject<HTMLDivElement | null>;
@@ -58,12 +59,17 @@ function AssistantMessage({
   content,
   model,
   topContent,
+  showTypingIndicator = false,
+  hideActions = false,
 }: {
   content: string;
   model?: string;
   topContent?: React.ReactNode;
+  showTypingIndicator?: boolean;
+  hideActions?: boolean;
 }) {
   const visibleContent = stripThinkBlocks(content);
+  const hasVisibleContent = Boolean(visibleContent.trim());
   return (
     <div className="flex flex-col gap-6">
       {/* Avatar + name */}
@@ -76,27 +82,33 @@ function AssistantMessage({
         </span>
       </div>
 
+      {showTypingIndicator && <TypingIndicator />}
+
       {topContent}
 
       {/* Markdown body (think blocks stripped) */}
-      <div className="typography-prose max-w-none pl-11">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {visibleContent || "\u00A0"}
-        </ReactMarkdown>
-      </div>
+      {hasVisibleContent && (
+        <div className="typography-prose max-w-none pl-11">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {visibleContent}
+          </ReactMarkdown>
+        </div>
+      )}
 
       {/* Actions + model badge */}
-      <div className="flex items-center gap-4 pl-11">
-        <MessageActions content={visibleContent} />
-        {model && (
-          <div className="ml-auto flex items-center gap-2 rounded-full bg-surface-overlay/50 border border-border px-3 py-1 animate-in fade-in slide-in-from-right-2 duration-1000">
-            <div className="h-1.5 w-1.5 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)] animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-dim/80">
-              {model.split("/").pop()}
-            </span>
-          </div>
-        )}
-      </div>
+      {hasVisibleContent && !hideActions && (
+        <div className="flex items-center gap-4 pl-11">
+          <MessageActions content={visibleContent} />
+          {model && (
+            <div className="ml-auto flex items-center gap-2 rounded-full bg-surface-overlay/50 border border-border px-3 py-1 animate-in fade-in slide-in-from-right-2 duration-1000">
+              <div className="h-1.5 w-1.5 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)] animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-dim/80">
+                {model.split("/").pop()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -175,9 +187,35 @@ function AssistantReplyImages({
   );
 }
 
+function TypingIndicator({ hint }: { hint?: string }) {
+  return (
+    <div className="ml-11 flex items-center gap-3 text-[var(--text-sm)] text-text-muted">
+      <span>{hint || "Nexora is thinking"}</span>
+      <span className="inline-flex items-center gap-1" aria-hidden>
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:0ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:180ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:360ms]" />
+      </span>
+    </div>
+  );
+}
+
+function AssistantTypingMessage({ hint }: { hint?: string }) {
+  return (
+    <div className="flex w-full justify-start flex-col animate-in fade-in slide-in-from-bottom-2 duration-700">
+      <AssistantMessage
+        content=""
+        showTypingIndicator={false}
+        topContent={<TypingIndicator hint={hint} />}
+      />
+    </div>
+  );
+}
+
 export function ChatMessages({
   messages,
   isLoading,
+  loadingHint,
   lastMessageRef,
   replyImages = [],
   replyImageQuery = null,
@@ -185,6 +223,14 @@ export function ChatMessages({
   replyImageError = null,
 }: ChatMessagesProps) {
   if (messages.length === 0) return null;
+
+  const lastMessage = messages[messages.length - 1];
+  const lastAssistantContent =
+    lastMessage?.role === "assistant"
+      ? stripThinkBlocks(lastMessage.content).trim()
+      : "";
+  const shouldShowTypingIndicator =
+    isLoading && (lastMessage?.role !== "assistant" || !lastAssistantContent);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
@@ -205,14 +251,21 @@ export function ChatMessages({
               <AssistantMessage
                 content={m.content}
                 model={m.model}
+                showTypingIndicator={false}
+                hideActions={isLast && isLoading}
                 topContent={
                   isLast ? (
+                    <>
+                      {shouldShowTypingIndicator ? (
+                        <TypingIndicator hint={loadingHint} />
+                      ) : null}
                     <AssistantReplyImages
                       images={replyImages}
                       query={replyImageQuery}
                       status={replyImageState}
                       error={replyImageError}
                     />
+                    </>
                   ) : undefined
                 }
               />
@@ -221,7 +274,9 @@ export function ChatMessages({
         );
       })}
 
-      {isLoading && null}
+      {shouldShowTypingIndicator && lastMessage?.role !== "assistant" && (
+        <AssistantTypingMessage hint={loadingHint} />
+      )}
     </div>
   );
 }

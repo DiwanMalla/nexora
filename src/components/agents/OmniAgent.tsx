@@ -20,6 +20,25 @@ import { Bot as BotIcon } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function shouldFetchImagesForQuery(query: string): boolean {
+  const q = query.toLowerCase().trim();
+  if (!q) return false;
+
+  // Skip images for core technical/repo/debug tasks.
+  if (
+    /\b(code|coding|debug|bug|stack trace|repo|repository|github|package\.json|readme|api|endpoint|env|dotenv|database|sql|backend|typescript|javascript|react|next\.?js)\b/i.test(
+      q,
+    )
+  ) {
+    return false;
+  }
+
+  // Fetch images only when visual intent is explicit.
+  return /\b(image|images|visual|visually|screenshot|screenshots|logo|logos|ui|design|inspiration|diagram|photo|photos|brand|product)\b/i.test(
+    q,
+  );
+}
+
 function getTextFromParts(
   parts: Array<{ type: string; text?: string }>,
 ): string {
@@ -58,6 +77,9 @@ export function OmniAgent() {
   const [latestQuery, setLatestQuery] = useState<string | null>(null);
   const imageRequestRef = useRef(0);
   const omniProviderRef = useRef(omniProvider);
+  const requestStartMsRef = useRef<number | null>(null);
+  const headersAtMsRef = useRef<number | null>(null);
+  const firstVisibleTokenMsRef = useRef<number | null>(null);
 
   useEffect(() => {
     omniProviderRef.current = omniProvider;
@@ -114,12 +136,24 @@ export function OmniAgent() {
       new DefaultChatTransport({
         api: "/api/omni-agent",
         fetch: async (url, init) => {
+          if (requestStartMsRef.current == null) {
+            requestStartMsRef.current = Date.now();
+            headersAtMsRef.current = null;
+            firstVisibleTokenMsRef.current = null;
+            console.log("[OmniTiming] request sent");
+          }
           const nextHeaders = new Headers(init?.headers);
           nextHeaders.set("x-omni-provider", omniProviderRef.current);
           const res = await fetch(url, {
             ...init,
             headers: nextHeaders,
           });
+          if (requestStartMsRef.current != null) {
+            headersAtMsRef.current = Date.now();
+            console.log(
+              `[OmniTiming] response headers in ${headersAtMsRef.current - requestStartMsRef.current}ms`,
+            );
+          }
           return res;
         },
       }),
@@ -133,7 +167,40 @@ export function OmniAgent() {
     [uiMessages],
   );
   const isLoading = status === "submitted" || status === "streaming";
+  const loadingHint =
+    status === "submitted"
+      ? "Researching sources..."
+      : imageSearchState === "loading"
+        ? "Streaming answer... images loading"
+        : "Streaming answer...";
   const isChatting = messages.length > 0 || isLoading;
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (
+      status === "streaming" &&
+      last?.role === "assistant" &&
+      last.content.trim().length > 0 &&
+      requestStartMsRef.current != null &&
+      firstVisibleTokenMsRef.current == null
+    ) {
+      firstVisibleTokenMsRef.current = Date.now();
+      console.log(
+        `[OmniTiming] first visible token in ${firstVisibleTokenMsRef.current - requestStartMsRef.current}ms`,
+      );
+    }
+  }, [messages, status]);
+
+  useEffect(() => {
+    if (
+      status === "ready" &&
+      requestStartMsRef.current != null
+    ) {
+      const doneMs = Date.now() - requestStartMsRef.current;
+      console.log(`[OmniTiming] response complete in ${doneMs}ms`);
+      requestStartMsRef.current = null;
+    }
+  }, [status]);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
@@ -144,7 +211,14 @@ export function OmniAgent() {
     if (!initQ) return;
     if (uiMessages.length > 0) return;
 
-    startImageSearch(initQ);
+    if (shouldFetchImagesForQuery(initQ)) {
+      startImageSearch(initQ);
+    } else {
+      setLatestQuery(initQ);
+      setReplyImages([]);
+      setImageSearchError(null);
+      setImageSearchState("idle");
+    }
     void sendMessage({ text: initQ });
 
     if (typeof window !== "undefined") {
@@ -178,7 +252,14 @@ export function OmniAgent() {
       const text = input.trim();
       if (!text || isLoading) return;
 
-      startImageSearch(text);
+      if (shouldFetchImagesForQuery(text)) {
+        startImageSearch(text);
+      } else {
+        setLatestQuery(text);
+        setReplyImages([]);
+        setImageSearchError(null);
+        setImageSearchState("idle");
+      }
 
       setInput("");
       await sendMessage({ text });
@@ -197,6 +278,7 @@ export function OmniAgent() {
             <ChatMessages
               messages={messages}
               isLoading={isLoading}
+              loadingHint={loadingHint}
               agentId="omni"
               lastMessageRef={lastMessageRef}
               replyImages={replyImages}

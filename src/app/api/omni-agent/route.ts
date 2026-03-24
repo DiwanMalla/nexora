@@ -27,12 +27,17 @@ import { getNexoraSystemPrompt } from "@/lib/nexora-system-prompt";
 import { getOpenRouter } from "@/lib/ai/providers";
 import { OPENROUTER_OMNI_MODEL_MAP } from "@/lib/ai/openrouter-models";
 import {
-  braveSearch,
-  mergeSearchResponses,
-  tavilySearch,
   type TavilySearchResponse,
   type TavilyResult,
 } from "@/lib/search";
+import { buildQueryPlan } from "@/lib/omni/planner";
+import {
+  buildRepoEvidenceBlock,
+  parseRepoEvidence,
+  runRetrievalPlan,
+} from "@/lib/omni/retrieval";
+import { buildEnhancedSystemPrompt } from "@/lib/omni/prompt-builder";
+import type { QueryAnalysis, RepoParsedEvidence } from "@/lib/omni/types";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
 
@@ -47,13 +52,6 @@ type IncomingMessage = {
   content?: string;
   parts?: unknown[];
 };
-
-interface QueryAnalysis {
-  category: string;
-  needsWebSearch: boolean;
-  searchQuery: string;
-  reasoning: string;
-}
 
 interface PipelineStep {
   name: string;
@@ -106,6 +104,53 @@ function detectUserPersona(userQuery: string): UserPersona {
     return "business";
   }
   return "general";
+}
+
+function isComparisonStyleQuery(query: string): boolean {
+  return /\b(compare|comparison|vs|versus|pricing|price|difference|which is better)\b/i.test(
+    query,
+  );
+}
+
+function getHeuristicAnalysis(question: string): QueryAnalysis | null {
+  const q = question.toLowerCase();
+  const hasGithub = /github\.com\/[^/\s]+\/[^/\s]+/.test(q);
+  const hasUrl = /https?:\/\/\S+/.test(q);
+  const comparison = isComparisonStyleQuery(question);
+  const current = /\b(latest|today|current|recent|news)\b/i.test(q);
+
+  if (hasGithub) {
+    return {
+      category: "coding",
+      needsWebSearch: true,
+      searchQuery: question,
+      reasoning: "Heuristic: GitHub repo analysis needs retrieval-first path.",
+      recommendedModel: "coding",
+    };
+  }
+
+  if (comparison || current) {
+    return {
+      category: "research",
+      needsWebSearch: true,
+      searchQuery: question,
+      reasoning:
+        "Heuristic: comparison/current-info query, use retrieval with fast synthesis.",
+      recommendedModel: "complexWriting",
+    };
+  }
+
+  if (hasUrl) {
+    return {
+      category: "research",
+      needsWebSearch: true,
+      searchQuery: question,
+      reasoning: "Heuristic: URL provided, retrieval-first path.",
+      recommendedModel: "complexWriting",
+    };
+  }
+
+  return null;
 }
 
 function rewriteGenericPhrases(text: string): string {
@@ -364,7 +409,7 @@ function createModelFactory(provider: OmniProviderName) {
 async function analyzeQuery(
   question: string,
   model: GenerationModel,
-): Promise<QueryAnalysis & { recommendedModel: string }> {
+): Promise<QueryAnalysis> {
   const analysisSchema = z.object({
     category: z.enum([
       "coding",
@@ -477,6 +522,83 @@ function deepAnalyze(results: TavilyResult[]): string {
   ].join("\n");
 }
 
+function lightweightResearchSummary(results: TavilyResult[]): string {
+  if (!results.length) return "";
+  const top = results.slice(0, 4);
+  const lines = top.map(
+    (r, i) =>
+      `${i + 1}. ${r.title} — ${r.content.slice(0, 180).replace(/\s+/g, " ").trim()} (${r.url})`,
+  );
+  return ["## Key Retrieved Points", ...lines].join("\n");
+}
+
+function capSourcesForSynthesis(
+  response: TavilySearchResponse,
+  maxSources: number,
+): TavilySearchResponse {
+  if (response.results.length <= maxSources) return response;
+
+  const officialVendorDomains = [
+    "openrouter.ai",
+    "groq.com",
+    "docs.groq.com",
+    "platform.openai.com",
+    "openai.com",
+    "anthropic.com",
+    "docs.anthropic.com",
+    "ai.google.dev",
+    "cloud.google.com",
+  ];
+
+  const canonicalizeDomain = (url: string): string =>
+    getDomain(url).replace(/^docs\./, "").replace(/^www\./, "");
+  const isOfficial = (url: string): boolean => {
+    const domain = canonicalizeDomain(url);
+    return officialVendorDomains.some(
+      (d) => domain === d || domain.endsWith(`.${d}`),
+    );
+  };
+  const normalizeTitle = (title: string): string =>
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const similarityKey = (r: TavilyResult): string => {
+    const d = canonicalizeDomain(r.url);
+    const t = normalizeTitle(r.title)
+      .split(" ")
+      .filter((w) => w.length > 2)
+      .slice(0, 6)
+      .join(" ");
+    return `${d}::${t}`;
+  };
+
+  const sorted = [...response.results].sort((a, b) => {
+    const officialDelta = Number(isOfficial(b.url)) - Number(isOfficial(a.url));
+    if (officialDelta !== 0) return officialDelta;
+    return b.score - a.score;
+  });
+
+  const deduped: TavilyResult[] = [];
+  const seenKeys = new Set<string>();
+  const seenUrls = new Set<string>();
+  for (const r of sorted) {
+    const cleanUrl = r.url.split("#")[0]?.replace(/\/+$/, "") ?? r.url;
+    const key = similarityKey(r);
+    if (seenUrls.has(cleanUrl) || seenKeys.has(key)) continue;
+    seenUrls.add(cleanUrl);
+    seenKeys.add(key);
+    deduped.push(r);
+    if (deduped.length >= maxSources) break;
+  }
+
+  return {
+    ...response,
+    results: deduped,
+  };
+}
+
 function getDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
@@ -484,6 +606,10 @@ function getDomain(url: string): string {
     return "";
   }
 }
+
+
+
+
 
 function scoreDomainCredibility(domain: string): number {
   if (!domain) return 0;
@@ -498,6 +624,9 @@ function scoreDomainCredibility(domain: string): number {
     /bbc\.com$/,
     /who\.int$/,
     /un\.org$/,
+    /openrouter\.ai$/,
+    /groq\.com$/,
+    /docs\.groq\.com$/,
   ];
   const lowTrustPatterns = [/blogspot\./, /medium\.com$/, /reddit\.com$/];
 
@@ -601,6 +730,39 @@ function renderClaimChecks(claimChecks: ClaimVerification[]): string {
     .join("\n");
 }
 
+function isExtractionStyleRepoPrompt(query: string): boolean {
+  return /\b(extract|exact|list|show|inspect|read)\b/i.test(query) &&
+    /\b(package\.json|scripts|env|environment variables|api routes|docs\/api|milestones)\b/i.test(
+      query,
+    );
+}
+
+function formatRepoInspectionReport(parsed: RepoParsedEvidence): string {
+  const cleanInlineCode = (value: string): string =>
+    value.replace(/^`+|`+$/g, "").trim();
+
+  const scripts = Object.entries(parsed.scripts)
+    .map(([k, v]) => `- \`${cleanInlineCode(k)}\`: \`${cleanInlineCode(v)}\``)
+    .join("\n");
+  const envVars = parsed.envVars
+    .map((v) => `- \`${cleanInlineCode(v)}\``)
+    .join("\n");
+  const routes = parsed.apiRoutes
+    .map((r) => `- \`${cleanInlineCode(r)}\``)
+    .join("\n");
+
+  return [
+    "## Extracted npm scripts",
+    scripts || "- none",
+    "",
+    "## Extracted environment variables",
+    envVars || "- none",
+    "",
+    "## Documented API routes",
+    routes || "- none",
+  ].join("\n");
+}
+
 function factCheck(results: TavilyResult[]): FactCheckSummary {
   if (results.length < 2) {
     return {
@@ -686,45 +848,6 @@ function toModelMessages(messages: IncomingMessage[]): Message[] {
 
 // ─── System prompt builder ──────────────────────────────────────────────────
 
-function buildEnhancedSystemPrompt(
-  basePrompt: string,
-  analysis: QueryAnalysis,
-  searchResponse: TavilySearchResponse | null,
-  analysisText: string,
-  factCheckResult: FactCheckSummary | null,
-): string {
-  const parts = [basePrompt];
-
-  parts.push("\n\n--- PIPELINE CONTEXT ---");
-  parts.push(`Query Category: ${analysis.category}`);
-  parts.push(`Web Search Used: ${analysis.needsWebSearch ? "Yes" : "No"}`);
-
-  if (searchResponse) {
-    if (searchResponse.answer) {
-      parts.push(`\nSearch Quick Answer: ${searchResponse.answer}`);
-    }
-    parts.push(`\n${analysisText}`);
-
-    if (factCheckResult) {
-      parts.push(`\nFact Check: ${factCheckResult.notes}`);
-      parts.push(
-        `\nClaim Verification:\n${renderClaimChecks(factCheckResult.claimChecks)}`,
-      );
-    }
-  }
-
-  parts.push(`
-Response style guidance:
-- Write in a natural, conversational style similar to modern assistants (Gemini/ChatGPT/Groq).
-- Do NOT force fixed section headers unless they clearly improve readability.
-- When making factual claims from web results, ground them in the available evidence and mention key sources naturally.
-- If evidence is weak or conflicting, state uncertainty clearly and avoid overconfident wording.`);
-
-  parts.push("--- END PIPELINE CONTEXT ---");
-
-  return parts.join("\n");
-}
-
 // ─── Main handler ───────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
@@ -751,14 +874,27 @@ export async function POST(req: Request) {
       simpleModelId as Parameters<typeof groq>[0],
     );
 
-    console.log("  [1/6] 🔍 Analyzing query using AI...");
-    const analysis = await analyzeQuery(lastContent, simpleModel);
+    console.log("  [1/6] 🔍 Analyzing query...");
+    const analysisStartMs = Date.now();
+    const heuristic = getHeuristicAnalysis(lastContent);
+    const initialAnalysis = heuristic ?? (await analyzeQuery(lastContent, simpleModel));
+    console.log(
+      `        ✅ Analysis source: ${heuristic ? "heuristic-fast-path" : "model-classifier"} (${Date.now() - analysisStartMs}ms)`,
+    );
+    const queryPlan = buildQueryPlan(lastContent, initialAnalysis);
+    const analysis = {
+      ...initialAnalysis,
+      needsWebSearch:
+        queryPlan.retrievalStrategy !== "none" &&
+        queryPlan.retrievalStrategy !== "file_parse" &&
+        queryPlan.retrievalStrategy !== "ocr",
+      searchQuery: queryPlan.searchQuery || initialAnalysis.searchQuery,
+      reasoning: queryPlan.reasoning,
+      recommendedModel: queryPlan.recommendedModel,
+    };
 
     // Override the hardcoded router if we have a recommendation from the classifier
-    const recommendedKey =
-      analysis.recommendedModel in OMNI_MODELS
-        ? (analysis.recommendedModel as keyof typeof OMNI_MODELS)
-        : "simple";
+    const recommendedKey = queryPlan.recommendedModel;
     const modelId = getModelIdForProvider(providerName, recommendedKey);
     const reason = `AI Classifier: ${analysis.reasoning}`;
 
@@ -776,64 +912,63 @@ export async function POST(req: Request) {
       durationMs: step1Time,
     });
 
-    // ── Step 2: Web Search ──────────────────────────────────────────────
+    // ── Step 2: Retrieval (strategy-driven) ─────────────────────────────
     let searchResponse: TavilySearchResponse | null = null;
+    let repoEvidenceBlock: string | undefined;
+    let parsedRepoEvidence: RepoParsedEvidence | undefined;
+    let webSearchUsed = false;
 
     if (analysis.needsWebSearch) {
-      console.log("  [2/6] 🌐 Searching the web via Tavily + Brave...");
+      console.log(`  [2/6] 🌐 Retrieval strategy: ${queryPlan.retrievalStrategy}`);
       const t2 = Date.now();
       try {
-        const [tavilyResult, braveResult] = await Promise.allSettled([
-          tavilySearch(analysis.searchQuery, {
-            maxResults: 5,
-            includeImages: false,
-          }),
-          braveSearch(analysis.searchQuery, {
-            maxResults: 5,
-            includeImages: false,
-          }),
-        ]);
-
-        const successfulResponses: TavilySearchResponse[] = [];
-        const providerNotes: string[] = [];
-
-        if (tavilyResult.status === "fulfilled") {
-          successfulResponses.push(tavilyResult.value);
-          providerNotes.push(`Tavily: ${tavilyResult.value.results.length}`);
-        } else {
-          providerNotes.push("Tavily: failed");
-          console.warn("Tavily search failed:", tavilyResult.reason);
-        }
-
-        if (braveResult.status === "fulfilled") {
-          successfulResponses.push(braveResult.value);
-          providerNotes.push(`Brave: ${braveResult.value.results.length}`);
-        } else {
-          providerNotes.push("Brave: failed");
-          console.warn("Brave search failed:", braveResult.reason);
-        }
-
-        if (!successfulResponses.length) {
-          throw new Error("Both Tavily and Brave search failed");
-        }
-
-        searchResponse = mergeSearchResponses(successfulResponses, 8);
-        searchResponse.results = enrichWithCredibility(searchResponse.results);
+        const retrieval = await runRetrievalPlan(queryPlan, lastContent);
+        searchResponse = retrieval.searchResponse;
+        webSearchUsed =
+          retrieval.log.strategyChosen === "web_search" ||
+          retrieval.log.fallbackUsed;
         const step2Time = Date.now() - t2;
+
+        console.log(
+          `        ✅ Strategy chosen: ${retrieval.log.strategyChosen} | fallback used: ${retrieval.log.fallbackUsed}`,
+        );
+        for (const attempt of retrieval.log.attempts) {
+          console.log(
+            `        ${attempt.success ? "✅" : "❌"} attempt ${attempt.strategy} -> ${attempt.target}${attempt.error ? ` (${attempt.error})` : ""}`,
+          );
+        }
+        if (retrieval.log.evidence.extractedFields.length) {
+          console.log(
+            `        ✅ Evidence extracted: ${retrieval.log.evidence.extractedFields.join(", ")}`,
+          );
+        }
+        if (queryPlan.retrievalStrategy === "repo_fetch") {
+          const parsed = parseRepoEvidence(retrieval.log.evidence);
+          parsedRepoEvidence = parsed;
+          repoEvidenceBlock = buildRepoEvidenceBlock(parsed);
+          console.log(
+            `        ✅ Parsed repo evidence: scripts=${Object.keys(parsed.scripts).length}, env=${parsed.envVars.length}, routes=${parsed.apiRoutes.length}`,
+          );
+        }
+
+        if (!searchResponse) {
+          throw new Error("No retrieval evidence or search results were returned");
+        }
+
         pipelineSteps.push({
-          name: "Web Search",
+          name: "Retrieval",
           status: "done",
-          detail: `Found ${searchResponse.results.length} merged results (${providerNotes.join(", ")})`,
+          detail: `Found ${searchResponse.results.length} evidence-backed results (strategy: ${retrieval.log.strategyChosen})`,
           durationMs: step2Time,
         });
         console.log(
-          `        ✅ ${searchResponse.results.length} merged results (${providerNotes.join(", ")}) (${step2Time}ms)`,
+          `        ✅ ${searchResponse.results.length} results (${step2Time}ms)`,
         );
       } catch (err) {
         const step2Time = Date.now() - t2;
         const errMsg = err instanceof Error ? err.message : "Unknown error";
         pipelineSteps.push({
-          name: "Web Search",
+          name: "Retrieval",
           status: "error",
           detail: errMsg,
           durationMs: step2Time,
@@ -842,16 +977,89 @@ export async function POST(req: Request) {
       }
     } else {
       pipelineSteps.push({
-        name: "Web Search",
+        name: "Retrieval",
         status: "skipped",
-        detail: "Not needed for this query",
+        detail: "No retrieval needed for this query",
       });
-      console.log("  [2/6] 🌐 Web search — skipped (not needed)");
+      console.log("  [2/6] 🌐 Retrieval — skipped (not needed)");
+    }
+
+    if (queryPlan.groundingRequirement === "required" && !searchResponse) {
+      console.log(
+        "  ⚠️ Grounding required but no evidence retrieved. Returning retrieval-failure response.",
+      );
+
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta:
+              "I couldn't retrieve enough external evidence for this repo/file analysis task.\n\nI attempted web retrieval, but no usable sources were returned. Please retry, or share specific files (for example `README.md`, `package.json`, `.env.example`, and key docs) so I can produce an accurate grounded output without guessing.",
+          });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+        },
+      });
+    }
+
+    if (
+      queryPlan.retrievalStrategy === "repo_fetch" &&
+      parsedRepoEvidence &&
+      isExtractionStyleRepoPrompt(lastContent)
+    ) {
+      console.log(
+        "  ✅ Deterministic repo extraction path selected for extraction-style prompt.",
+      );
+      const deterministic = formatRepoInspectionReport(parsedRepoEvidence);
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({ type: "text-delta", id: textId, delta: deterministic });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+        },
+      });
+    }
+
+    const lightweightComparisonPath =
+      queryPlan.taskType === "web_research" && isComparisonStyleQuery(lastContent);
+    const fastSynthesisPath =
+      lightweightComparisonPath || queryPlan.taskType === "web_research";
+
+    if (searchResponse && fastSynthesisPath) {
+      const before = searchResponse.results.length;
+      const capped = capSourcesForSynthesis(searchResponse, 4);
+      searchResponse = capped;
+      const after = searchResponse.results.length;
+      if (after < before) {
+        console.log(
+          `        ✅ Source cap applied for synthesis: ${before} -> ${after}`,
+        );
+      }
     }
 
     // ── Step 3: Deep Analysis ───────────────────────────────────────────
     let analysisText = "";
-    if (searchResponse) {
+    if (searchResponse && !lightweightComparisonPath) {
       console.log("  [3/6] 🧠 Running deep analysis...");
       const t3 = Date.now();
       analysisText = deepAnalyze(searchResponse.results);
@@ -863,6 +1071,17 @@ export async function POST(req: Request) {
         durationMs: step3Time,
       });
       console.log(`        ✅ Deep analysis complete (${step3Time}ms)`);
+    } else if (searchResponse && lightweightComparisonPath) {
+      console.log("  [3/6] 🧠 Deep analysis — lightweight mode");
+      const t3 = Date.now();
+      analysisText = lightweightResearchSummary(searchResponse.results);
+      const step3Time = Date.now() - t3;
+      pipelineSteps.push({
+        name: "Deep Analysis",
+        status: "done",
+        detail: "Used lightweight summary path for comparison task",
+        durationMs: step3Time,
+      });
     } else {
       pipelineSteps.push({ name: "Deep Analysis", status: "skipped" });
       console.log("  [3/6] 🧠 Deep analysis — skipped");
@@ -870,7 +1089,7 @@ export async function POST(req: Request) {
 
     // ── Step 4: Fact Check ──────────────────────────────────────────────
     let factCheckResult: FactCheckSummary | null = null;
-    if (searchResponse) {
+    if (searchResponse && !lightweightComparisonPath) {
       console.log("  [4/6] ✓  Fact-checking across sources...");
       const t4 = Date.now();
       factCheckResult = factCheck(searchResponse.results);
@@ -882,6 +1101,13 @@ export async function POST(req: Request) {
         durationMs: step4Time,
       });
       console.log(`        ✅ ${factCheckResult.notes} (${step4Time}ms)`);
+    } else if (searchResponse && lightweightComparisonPath) {
+      pipelineSteps.push({
+        name: "Fact Check",
+        status: "skipped",
+        detail: "Skipped for lightweight comparison path",
+      });
+      console.log("  [4/6] ✓  Fact check — skipped (lightweight path)");
     } else {
       pipelineSteps.push({ name: "Fact Check", status: "skipped" });
       console.log("  [4/6] ✓  Fact check — skipped");
@@ -891,13 +1117,19 @@ export async function POST(req: Request) {
     console.log("  [5/6] 📚 Synthesizing research...");
     const t5 = Date.now();
     const basePrompt = getNexoraSystemPrompt();
-    const systemPrompt = buildEnhancedSystemPrompt(
+    const systemPrompt = buildEnhancedSystemPrompt({
       basePrompt,
       analysis,
+      retrievalStrategy: queryPlan.retrievalStrategy,
+      webSearchUsed,
       searchResponse,
       analysisText,
-      factCheckResult,
-    );
+      factCheckNotes: factCheckResult?.notes,
+      claimVerificationText: factCheckResult
+        ? renderClaimChecks(factCheckResult.claimChecks)
+        : undefined,
+      repoEvidenceBlock,
+    });
     const step5Time = Date.now() - t5;
     pipelineSteps.push({
       name: "Research Synthesis",
@@ -921,6 +1153,8 @@ export async function POST(req: Request) {
       model: modelFactory(modelId as Parameters<typeof groq>[0]),
       messages: messagesWithSystem,
     });
+    const generationStartMs = Date.now();
+    let firstTokenMs: number | null = null;
 
     // Use createUIMessageStream to prepend pipeline tracking, then forward the
     // LLM stream.  We intercept the first `text-start` chunk and inject the
@@ -941,8 +1175,22 @@ export async function POST(req: Request) {
           if (!injectedTracking && chunk.type === "text-start") {
             injectedTracking = true;
           }
+          if (
+            firstTokenMs == null &&
+            chunk.type === "text-delta" &&
+            typeof chunk.delta === "string" &&
+            chunk.delta.length > 0
+          ) {
+            firstTokenMs = Date.now();
+            console.log(
+              `        ✅ First token after ${firstTokenMs - generationStartMs}ms`,
+            );
+          }
           writer.write(chunk);
         }
+        console.log(
+          `        ✅ Stream complete after ${Date.now() - generationStartMs}ms`,
+        );
       },
     });
 
@@ -952,7 +1200,8 @@ export async function POST(req: Request) {
         steps: pipelineSteps,
         totalMs: totalPipelineMs,
         category: analysis.category,
-        webSearchUsed: analysis.needsWebSearch,
+        webSearchUsed,
+        retrievalStrategy: queryPlan.retrievalStrategy,
         sourcesCount: searchResponse?.results.length ?? 0,
         imagesCount: 0,
         factCheckVerified: factCheckResult?.verified ?? null,
