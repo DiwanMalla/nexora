@@ -42,6 +42,7 @@ import type { QueryAnalysis, RepoParsedEvidence } from "@/lib/omni/types";
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
 
 type OmniProviderName = "groq" | "openrouter";
+type RouteModelKey = keyof typeof OMNI_MODELS;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,27 @@ interface FactCheckSummary {
   claimChecks: ClaimVerification[];
 }
 
+type RetrievalQuality = "high" | "limited" | "none";
+
 type GenerationModel = Parameters<typeof generateText>[0]["model"];
+type ModelFactory = ReturnType<typeof createModelFactory>;
+
+type RouteCandidate = {
+  provider: OmniProviderName;
+  modelId: string;
+  routeKey: RouteModelKey;
+};
+
+type RouteLatencyStats = {
+  firstTokenMsAvg: number;
+  completeMsAvg: number;
+  samples: number;
+};
+
+const routeLatencyStats = new Map<string, RouteLatencyStats>();
+const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = Number(
+  process.env.OMNI_FIRST_TOKEN_TIMEOUT_MS ?? "9000",
+);
 
 type UserPersona = "student" | "developer" | "business" | "general";
 
@@ -371,6 +392,7 @@ function getOmniProvider(requestedProvider: string | null): OmniProviderName {
   if (requestedProvider === "openrouter" || requestedProvider === "groq") {
     return requestedProvider;
   }
+  // Groq is the default during Omni stabilization/testing.
   return process.env.OMNI_PROVIDER === "openrouter" ? "openrouter" : "groq";
 }
 
@@ -402,6 +424,104 @@ function createModelFactory(provider: OmniProviderName) {
     return getOpenRouter();
   }
   return groq;
+}
+
+function buildRouteCandidates(
+  preferredProvider: OmniProviderName,
+  routeKey: RouteModelKey,
+): RouteCandidate[] {
+  const openRouterPrimary: Record<RouteModelKey, string[]> = {
+    coding: [
+      getModelIdForProvider("openrouter", "coding"),
+      getModelIdForProvider("openrouter", "heavyReasoning"),
+      getModelIdForProvider("openrouter", "simple"),
+    ],
+    heavyReasoning: [
+      getModelIdForProvider("openrouter", "heavyReasoning"),
+      getModelIdForProvider("openrouter", "complexWriting"),
+      getModelIdForProvider("openrouter", "simple"),
+    ],
+    complexWriting: [
+      getModelIdForProvider("openrouter", "complexWriting"),
+      getModelIdForProvider("openrouter", "heavyReasoning"),
+      getModelIdForProvider("openrouter", "simple"),
+    ],
+    simple: [
+      getModelIdForProvider("openrouter", "simple"),
+      getModelIdForProvider("openrouter", "complexWriting"),
+    ],
+  };
+
+  const groqBaseline: RouteCandidate[] = [
+    {
+      provider: "groq",
+      modelId: getModelIdForProvider("groq", routeKey),
+      routeKey,
+    },
+    {
+      provider: "groq",
+      modelId: getModelIdForProvider("groq", "simple"),
+      routeKey: "simple",
+    },
+  ];
+
+  const openRouterCandidates = [...new Set(openRouterPrimary[routeKey])].map(
+    (modelId) =>
+      ({
+        provider: "openrouter" as const,
+        modelId,
+        routeKey,
+      }) satisfies RouteCandidate,
+  );
+
+  // Keep provider routing isolated during stability testing.
+  // Groq remains the default test path; OpenRouter is opt-in via header/toggle.
+  return preferredProvider === "groq" ? groqBaseline : openRouterCandidates;
+}
+
+function routeCandidateKey(candidate: RouteCandidate): string {
+  return `${candidate.provider}:${candidate.modelId}`;
+}
+
+function rankRouteCandidates(candidates: RouteCandidate[]): RouteCandidate[] {
+  return [...candidates].sort((a, b) => {
+    const sa = routeLatencyStats.get(routeCandidateKey(a));
+    const sb = routeLatencyStats.get(routeCandidateKey(b));
+    if (!sa && !sb) return 0;
+    if (!sa) return 1;
+    if (!sb) return -1;
+    const aScore = sa.firstTokenMsAvg * 0.7 + sa.completeMsAvg * 0.3;
+    const bScore = sb.firstTokenMsAvg * 0.7 + sb.completeMsAvg * 0.3;
+    return aScore - bScore;
+  });
+}
+
+function updateRouteLatency(
+  candidate: RouteCandidate,
+  firstTokenMs: number,
+  completeMs: number,
+) {
+  const key = routeCandidateKey(candidate);
+  const current = routeLatencyStats.get(key);
+  if (!current) {
+    routeLatencyStats.set(key, {
+      firstTokenMsAvg: firstTokenMs,
+      completeMsAvg: completeMs,
+      samples: 1,
+    });
+    return;
+  }
+  const samples = current.samples + 1;
+  const alpha = Math.min(0.35, 2 / (samples + 1));
+  routeLatencyStats.set(key, {
+    firstTokenMsAvg: Math.round(
+      current.firstTokenMsAvg * (1 - alpha) + firstTokenMs * alpha,
+    ),
+    completeMsAvg: Math.round(
+      current.completeMsAvg * (1 - alpha) + completeMs * alpha,
+    ),
+    samples,
+  });
 }
 
 // ─── Query analysis ─────────────────────────────────────────────────────────
@@ -737,6 +857,40 @@ function isExtractionStyleRepoPrompt(query: string): boolean {
     );
 }
 
+function isStrictPageSummaryPrompt(query: string): boolean {
+  return /\b(summarize|summary|read|analyze|inspect|review|what does this page say|extract key points)\b/i.test(
+    query,
+  );
+}
+
+function assessRetrievalQuality(params: {
+  retrievalStrategy: string;
+  evidenceSourceCount: number;
+  fallbackUsed: boolean;
+  attempts: Array<{ success: boolean; error?: string; target: string }>;
+}): { quality: RetrievalQuality; note?: string } {
+  const { retrievalStrategy, evidenceSourceCount, fallbackUsed, attempts } = params;
+  if (evidenceSourceCount <= 0) {
+    return { quality: "none", note: "No usable retrieval evidence extracted." };
+  }
+
+  if (retrievalStrategy === "direct_url_fetch") {
+    const shellSignals = attempts.some((a) =>
+      /shell-only|low-content|rendered retry|rendered mirror/i.test(
+        `${a.error ?? ""} ${a.target}`,
+      ),
+    );
+    if (shellSignals || fallbackUsed) {
+      return {
+        quality: "limited",
+        note: "Partial page content extracted; dynamic content limitations may apply.",
+      };
+    }
+  }
+
+  return { quality: "high" };
+}
+
 function formatRepoInspectionReport(parsed: RepoParsedEvidence): string {
   const cleanInlineCode = (value: string): string =>
     value.replace(/^`+|`+$/g, "").trim();
@@ -853,6 +1007,8 @@ function toModelMessages(messages: IncomingMessage[]): Message[] {
 export async function POST(req: Request) {
   try {
     const requestedProvider = req.headers.get("x-omni-provider");
+    const requestId =
+      req.headers.get("x-omni-request-id") ?? `srv-${Date.now()}`;
     const body = (await req.json()) as { messages?: IncomingMessage[] };
     const raw = Array.isArray(body.messages) ? body.messages : [];
     const messages = toModelMessages(raw);
@@ -863,14 +1019,16 @@ export async function POST(req: Request) {
     console.log("\n╔══════════════════════════════════════════╗");
     console.log("║         OMNI AGENT PIPELINE START         ║");
     console.log("╚══════════════════════════════════════════╝");
+    console.log(`  Request ID: ${requestId}`);
     console.log(
       `  Prompt: "${lastContent.slice(0, 100)}${lastContent.length > 100 ? "..." : ""}"`,
     );
 
-    const providerName = getOmniProvider(requestedProvider);
-    const modelFactory = createModelFactory(providerName);
-    const simpleModelId = getModelIdForProvider(providerName, "simple");
-    const simpleModel = modelFactory(
+    const preferredProvider = getOmniProvider(requestedProvider);
+    const openRouterFactory = createModelFactory("openrouter");
+    const groqFactory = createModelFactory("groq");
+    const simpleModelId = getModelIdForProvider("openrouter", "simple");
+    const simpleModel = openRouterFactory(
       simpleModelId as Parameters<typeof groq>[0],
     );
 
@@ -895,7 +1053,20 @@ export async function POST(req: Request) {
 
     // Override the hardcoded router if we have a recommendation from the classifier
     const recommendedKey = queryPlan.recommendedModel;
-    const modelId = getModelIdForProvider(providerName, recommendedKey);
+    const providerCandidates = buildRouteCandidates(
+      preferredProvider,
+      recommendedKey,
+    );
+    const rankedCandidates =
+      preferredProvider === "groq"
+        ? rankRouteCandidates(providerCandidates)
+        : providerCandidates;
+    const primaryCandidate = rankedCandidates[0]!;
+    const fallbackCandidate = rankedCandidates[1];
+    const providerName = primaryCandidate.provider;
+    const modelId = primaryCandidate.modelId;
+    const modelFactory =
+      providerName === "openrouter" ? openRouterFactory : groqFactory;
     const reason = `AI Classifier: ${analysis.reasoning}`;
 
     console.log(`        ✅ Category: ${analysis.category}`);
@@ -903,6 +1074,11 @@ export async function POST(req: Request) {
     console.log(
       `        ✅ Routed to: ${analysis.recommendedModel} (${modelId})`,
     );
+    if (fallbackCandidate) {
+      console.log(
+        `        🛟 First-token fallback: ${fallbackCandidate.provider}/${fallbackCandidate.modelId}`,
+      );
+    }
 
     const step1Time = Date.now() - t0;
     pipelineSteps.push({
@@ -917,12 +1093,30 @@ export async function POST(req: Request) {
     let repoEvidenceBlock: string | undefined;
     let parsedRepoEvidence: RepoParsedEvidence | undefined;
     let webSearchUsed = false;
+    let retrievalQuality: RetrievalQuality = "high";
+    let retrievalQualityNote: string | undefined;
+    let retrievalLog:
+      | {
+          fallbackUsed: boolean;
+          evidence: { sources: Array<unknown> };
+          attempts?: Array<{ success: boolean; error?: string; target: string }>;
+        }
+      | undefined;
 
     if (analysis.needsWebSearch) {
       console.log(`  [2/6] 🌐 Retrieval strategy: ${queryPlan.retrievalStrategy}`);
       const t2 = Date.now();
       try {
         const retrieval = await runRetrievalPlan(queryPlan, lastContent);
+        retrievalLog = retrieval.log;
+        const quality = assessRetrievalQuality({
+          retrievalStrategy: queryPlan.retrievalStrategy,
+          evidenceSourceCount: retrieval.log.evidence.sources.length,
+          fallbackUsed: retrieval.log.fallbackUsed,
+          attempts: retrieval.log.attempts,
+        });
+        retrievalQuality = quality.quality;
+        retrievalQualityNote = quality.note;
         searchResponse = retrieval.searchResponse;
         webSearchUsed =
           retrieval.log.strategyChosen === "web_search" ||
@@ -976,6 +1170,7 @@ export async function POST(req: Request) {
         console.log(`        ❌ Search failed: ${errMsg} (${step2Time}ms)`);
       }
     } else {
+      retrievalQuality = "high";
       pipelineSteps.push({
         name: "Retrieval",
         status: "skipped",
@@ -1009,6 +1204,7 @@ export async function POST(req: Request) {
           "X-Omni-Model": modelId,
           "X-Omni-Provider": providerName,
           "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
         },
       });
     }
@@ -1036,6 +1232,7 @@ export async function POST(req: Request) {
           "X-Omni-Model": modelId,
           "X-Omni-Provider": providerName,
           "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
         },
       });
     }
@@ -1046,6 +1243,10 @@ export async function POST(req: Request) {
       lightweightComparisonPath || queryPlan.taskType === "web_research";
 
     if (searchResponse && fastSynthesisPath) {
+      searchResponse = {
+        ...searchResponse,
+        results: enrichWithCredibility(searchResponse.results),
+      };
       const before = searchResponse.results.length;
       const capped = capSourcesForSynthesis(searchResponse, 4);
       searchResponse = capped;
@@ -1055,6 +1256,39 @@ export async function POST(req: Request) {
           `        ✅ Source cap applied for synthesis: ${before} -> ${after}`,
         );
       }
+    }
+
+    if (
+      queryPlan.retrievalStrategy === "direct_url_fetch" &&
+      isStrictPageSummaryPrompt(lastContent) &&
+      retrievalLog?.fallbackUsed &&
+      (retrievalLog.evidence.sources.length ?? 0) === 0
+    ) {
+      console.log(
+        "  ⚠️ Direct URL page body not retrievable; returning fast deterministic limitation response.",
+      );
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta:
+              "I could access the page URL, but not enough rendered body content to produce a trustworthy summary.\n\nWhat I tried:\n- direct page fetch\n- rendered-content retry\n- fallback web retrieval\n\nNext step:\n- share a static/docs export, or paste the key page sections you want summarized.",
+          });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
+        },
+      });
     }
 
     // ── Step 3: Deep Analysis ───────────────────────────────────────────
@@ -1149,12 +1383,9 @@ export async function POST(req: Request) {
       ...messages,
     ];
 
-    const result = streamText({
-      model: modelFactory(modelId as Parameters<typeof groq>[0]),
-      messages: messagesWithSystem,
-    });
     const generationStartMs = Date.now();
     let firstTokenMs: number | null = null;
+    let chosenCandidate = primaryCandidate;
 
     // Use createUIMessageStream to prepend pipeline tracking, then forward the
     // LLM stream.  We intercept the first `text-start` chunk and inject the
@@ -1162,35 +1393,98 @@ export async function POST(req: Request) {
     // assistant message.
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        const llmStream = result.toUIMessageStream();
-        const reader = llmStream.getReader();
+        const makeResult = (candidate: RouteCandidate) => {
+          const factory =
+            candidate.provider === "openrouter" ? openRouterFactory : groqFactory;
+          return streamText({
+            model: factory(candidate.modelId as Parameters<typeof groq>[0]),
+            messages: messagesWithSystem,
+          });
+        };
 
         type WriterChunk = Parameters<typeof writer.write>[0];
-        let injectedTracking = false;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = value as WriterChunk;
-          if (!injectedTracking && chunk.type === "text-start") {
-            injectedTracking = true;
+        const forwardReader = async (
+          reader: ReadableStreamDefaultReader<unknown>,
+        ) => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = value as WriterChunk;
+            if (
+              firstTokenMs == null &&
+              chunk.type === "text-delta" &&
+              typeof chunk.delta === "string" &&
+              chunk.delta.length > 0
+            ) {
+              firstTokenMs = Date.now();
+              console.log(
+                `        ✅ First token after ${firstTokenMs - generationStartMs}ms (${chosenCandidate.provider}/${chosenCandidate.modelId})`,
+              );
+            }
+            writer.write(chunk);
           }
+        };
+
+        const primaryResult = makeResult(primaryCandidate);
+        const primaryReader = primaryResult.toUIMessageStream().getReader();
+        const bufferedChunks: WriterChunk[] = [];
+        let hasFirstDelta = false;
+
+        while (!hasFirstDelta) {
+          const race = await Promise.race([
+            primaryReader.read(),
+            new Promise<null>((resolve) =>
+              setTimeout(resolve, DEFAULT_FIRST_TOKEN_TIMEOUT_MS),
+            ),
+          ]);
+
+          if (race === null) {
+            if (fallbackCandidate) {
+              console.log(
+                `        ⚠️ First-token timeout (${DEFAULT_FIRST_TOKEN_TIMEOUT_MS}ms). Falling back to ${fallbackCandidate.provider}/${fallbackCandidate.modelId}`,
+              );
+              await primaryReader.cancel("first-token-timeout-fallback");
+              chosenCandidate = fallbackCandidate;
+              const fallbackReader = makeResult(fallbackCandidate)
+                .toUIMessageStream()
+                .getReader();
+              await forwardReader(fallbackReader);
+              const completeMs = Date.now() - generationStartMs;
+              updateRouteLatency(
+                fallbackCandidate,
+                firstTokenMs == null ? completeMs : firstTokenMs - generationStartMs,
+                completeMs,
+              );
+              console.log(`        ✅ Stream complete after ${completeMs}ms`);
+              return;
+            }
+            console.log(
+              `        ⚠️ First-token timeout (${DEFAULT_FIRST_TOKEN_TIMEOUT_MS}ms) with no fallback candidate.`,
+            );
+            continue;
+          }
+
+          if (race.done) break;
+          const chunk = race.value as WriterChunk;
+          bufferedChunks.push(chunk);
           if (
-            firstTokenMs == null &&
             chunk.type === "text-delta" &&
             typeof chunk.delta === "string" &&
             chunk.delta.length > 0
           ) {
-            firstTokenMs = Date.now();
-            console.log(
-              `        ✅ First token after ${firstTokenMs - generationStartMs}ms`,
-            );
+            hasFirstDelta = true;
           }
-          writer.write(chunk);
         }
-        console.log(
-          `        ✅ Stream complete after ${Date.now() - generationStartMs}ms`,
+
+        for (const chunk of bufferedChunks) writer.write(chunk);
+        await forwardReader(primaryReader);
+        const completeMs = Date.now() - generationStartMs;
+        updateRouteLatency(
+          primaryCandidate,
+          firstTokenMs == null ? completeMs : firstTokenMs - generationStartMs,
+          completeMs,
         );
+        console.log(`        ✅ Stream complete after ${completeMs}ms`);
       },
     });
 
@@ -1206,6 +1500,10 @@ export async function POST(req: Request) {
         imagesCount: 0,
         factCheckVerified: factCheckResult?.verified ?? null,
         provider: providerName,
+        modelId,
+        fallbackModelId: fallbackCandidate?.modelId ?? null,
+        retrievalQuality,
+        retrievalQualityNote: retrievalQualityNote ?? null,
         claimChecksTotal: factCheckResult?.claimChecks.length ?? 0,
         claimChecksHighOrMedium:
           factCheckResult?.claimChecks.filter(
@@ -1222,6 +1520,7 @@ export async function POST(req: Request) {
         "X-Omni-Model": modelId,
         "X-Omni-Provider": providerName,
         "X-Omni-Reason": encodeHeaderValue(reason),
+        "X-Omni-Request-Id": requestId,
         "X-Pipeline-Data": pipelineHeaderValue,
       },
     });

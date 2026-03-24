@@ -48,6 +48,81 @@ function getTextFromParts(
     .join("");
 }
 
+type PipelineHeaderStep = {
+  name: string;
+  status: "done" | "skipped" | "running";
+};
+
+type PipelineHeaderPayload = {
+  steps?: PipelineHeaderStep[];
+  retrievalStrategy?: string;
+  retrievalQuality?: "high" | "limited" | "none";
+  retrievalQualityNote?: string | null;
+};
+
+type StrategyProfileKey =
+  | "repo_fetch"
+  | "direct_url_fetch"
+  | "web_search"
+  | "none";
+
+const PIPELINE_STEP_ORDER = [
+  "Query Analysis",
+  "Retrieval",
+  "Deep Analysis",
+  "Fact Check",
+  "Research Synthesis",
+];
+
+const PROGRESS_PROFILES: Record<StrategyProfileKey, string[]> = {
+  repo_fetch: [
+    "Inspecting repository",
+    "Reading project files",
+    "Extracting key details",
+    "Preparing summary",
+  ],
+  direct_url_fetch: [
+    "Opening page",
+    "Reading content",
+    "Extracting key sections",
+    "Preparing summary",
+  ],
+  web_search: [
+    "Analyzing your request",
+    "Searching the web",
+    "Reviewing sources",
+    "Preparing answer",
+  ],
+  none: [
+    "Understanding your question",
+    "Reasoning through options",
+    "Preparing answer",
+  ],
+};
+
+function detectStrategyFromQuery(query: string): StrategyProfileKey {
+  const q = query.toLowerCase().trim();
+  if (/\bgithub\.com\/[^/\s]+\/[^/\s]+/i.test(q)) return "repo_fetch";
+  if (/https?:\/\/\S+/i.test(q)) return "direct_url_fetch";
+  if (
+    /\b(latest|today|current|recent|news|price|pricing|compare|vs)\b/i.test(q)
+  ) {
+    return "web_search";
+  }
+  return "none";
+}
+
+function normalizeStrategy(value: string | undefined): StrategyProfileKey {
+  if (value === "repo_fetch") return "repo_fetch";
+  if (value === "direct_url_fetch") return "direct_url_fetch";
+  if (value === "web_search") return "web_search";
+  return "none";
+}
+
+function getProfileSteps(strategy: StrategyProfileKey): string[] {
+  return PROGRESS_PROFILES[strategy];
+}
+
 function uiMessagesToChatMessages(
   messages: Array<{
     id: string;
@@ -80,6 +155,18 @@ export function OmniAgent() {
   const requestStartMsRef = useRef<number | null>(null);
   const headersAtMsRef = useRef<number | null>(null);
   const firstVisibleTokenMsRef = useRef<number | null>(null);
+  const pendingQueryRef = useRef<string>("");
+  const currentStrategyRef = useRef<StrategyProfileKey>("none");
+  const lastSubmissionRef = useRef<{ text: string; at: number } | null>(null);
+  const [pipelineProgressSteps, setPipelineProgressSteps] = useState<
+    Array<{ label: string; done: boolean }>
+  >([]);
+  const [activeStepLabel, setActiveStepLabel] = useState<string | undefined>(
+    undefined,
+  );
+  const [retrievalQualityNotice, setRetrievalQualityNotice] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     omniProviderRef.current = omniProvider;
@@ -144,14 +231,60 @@ export function OmniAgent() {
           }
           const nextHeaders = new Headers(init?.headers);
           nextHeaders.set("x-omni-provider", omniProviderRef.current);
+          const requestId =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `omni-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          nextHeaders.set("x-omni-request-id", requestId);
+          const optimisticStrategy = detectStrategyFromQuery(
+            pendingQueryRef.current,
+          );
+          currentStrategyRef.current = optimisticStrategy;
+          const optimisticSteps = getProfileSteps(optimisticStrategy);
+          setPipelineProgressSteps([]);
+          setActiveStepLabel(optimisticSteps[0]);
+          setRetrievalQualityNotice(null);
           const res = await fetch(url, {
             ...init,
             headers: nextHeaders,
           });
+          const pipelineHeader = res.headers.get("X-Pipeline-Data");
+          if (pipelineHeader) {
+            try {
+              const decoded = decodeURIComponent(pipelineHeader);
+              const parsed = JSON.parse(decoded) as PipelineHeaderPayload;
+              const strategy = normalizeStrategy(parsed.retrievalStrategy);
+              currentStrategyRef.current = strategy;
+              if (parsed.retrievalQuality === "limited") {
+                setRetrievalQualityNotice(
+                  parsed.retrievalQualityNote ??
+                    "Limited page content detected; answer may be partial.",
+                );
+              } else if (parsed.retrievalQuality === "none") {
+                setRetrievalQualityNotice(
+                  parsed.retrievalQualityNote ?? "No usable external content detected.",
+                );
+              }
+              const profileSteps = getProfileSteps(strategy);
+              const retrieved = parsed.steps ?? [];
+              const doneStepCount = PIPELINE_STEP_ORDER.reduce((count, name) => {
+                const match = retrieved.find((step) => step.name === name);
+                return match && match.status === "done" ? count + 1 : count;
+              }, 0);
+              const doneSteps = profileSteps
+                .slice(0, Math.min(doneStepCount, profileSteps.length))
+                .map((label) => ({ label, done: true }));
+              setPipelineProgressSteps(doneSteps);
+              const activeIndex = Math.min(doneStepCount, profileSteps.length - 1);
+              setActiveStepLabel(profileSteps[activeIndex]);
+            } catch {
+              // Keep optimistic progress if header parsing fails.
+            }
+          }
           if (requestStartMsRef.current != null) {
             headersAtMsRef.current = Date.now();
             console.log(
-              `[OmniTiming] response headers in ${headersAtMsRef.current - requestStartMsRef.current}ms`,
+              `[OmniTiming] response headers in ${headersAtMsRef.current - requestStartMsRef.current}ms (req=${requestId})`,
             );
           }
           return res;
@@ -167,12 +300,44 @@ export function OmniAgent() {
     [uiMessages],
   );
   const isLoading = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    if (status !== "submitted") return;
+    setPipelineProgressSteps([]);
+    const profileSteps = getProfileSteps(currentStrategyRef.current);
+    let stepIndex = 0;
+    setActiveStepLabel(profileSteps[stepIndex]);
+    const id = window.setInterval(() => {
+      stepIndex = Math.min(stepIndex + 1, profileSteps.length - 1);
+      setPipelineProgressSteps(
+        profileSteps.slice(0, stepIndex).map((label) => ({
+          label,
+          done: true,
+        })),
+      );
+      setActiveStepLabel(profileSteps[stepIndex]);
+    }, 1300);
+    return () => window.clearInterval(id);
+  }, [status]);
+
+  useEffect(() => {
+    if (status === "streaming") {
+      setActiveStepLabel("Writing response");
+    }
+    if (status === "ready") {
+      setActiveStepLabel(undefined);
+      setPipelineProgressSteps([]);
+      setRetrievalQualityNotice(null);
+    }
+  }, [status]);
+
   const loadingHint =
     status === "submitted"
-      ? "Researching sources..."
+      ? retrievalQualityNotice
+        ? `Nexora is working... ${retrievalQualityNotice}`
+        : "Nexora is working..."
       : imageSearchState === "loading"
-        ? "Streaming answer... images loading"
-        : "Streaming answer...";
+        ? "Writing response... loading related visuals..."
+        : "Writing response...";
   const isChatting = messages.length > 0 || isLoading;
 
   useEffect(() => {
@@ -210,6 +375,13 @@ export function OmniAgent() {
     const initQ = searchParams.get("q");
     if (!initQ) return;
     if (uiMessages.length > 0) return;
+    pendingQueryRef.current = initQ;
+    const freshStrategy = detectStrategyFromQuery(initQ);
+    currentStrategyRef.current = freshStrategy;
+    const freshSteps = getProfileSteps(freshStrategy);
+    setPipelineProgressSteps([]);
+    setActiveStepLabel(freshSteps[0]);
+    setRetrievalQualityNotice(null);
 
     if (shouldFetchImagesForQuery(initQ)) {
       startImageSearch(initQ);
@@ -251,6 +423,24 @@ export function OmniAgent() {
       e?.preventDefault?.();
       const text = input.trim();
       if (!text || isLoading) return;
+      const now = Date.now();
+      const recent = lastSubmissionRef.current;
+      if (
+        recent &&
+        recent.text === text &&
+        now - recent.at < 1500
+      ) {
+        console.log("[Omni] duplicate submission suppressed");
+        return;
+      }
+      lastSubmissionRef.current = { text, at: now };
+      pendingQueryRef.current = text;
+      const freshStrategy = detectStrategyFromQuery(text);
+      currentStrategyRef.current = freshStrategy;
+      const freshSteps = getProfileSteps(freshStrategy);
+      setPipelineProgressSteps([]);
+      setActiveStepLabel(freshSteps[0]);
+      setRetrievalQualityNotice(null);
 
       if (shouldFetchImagesForQuery(text)) {
         startImageSearch(text);
@@ -279,6 +469,8 @@ export function OmniAgent() {
               messages={messages}
               isLoading={isLoading}
               loadingHint={loadingHint}
+              progressSteps={pipelineProgressSteps}
+              activeStepLabel={activeStepLabel}
               agentId="omni"
               lastMessageRef={lastMessageRef}
               replyImages={replyImages}

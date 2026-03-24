@@ -94,6 +94,20 @@ export function buildQueryPlan(
     /\b(compare|comparison|vs|pricing|price|difference|which is better)\b/i.test(
       q,
     );
+  const hasExplicitNoSearchInstruction =
+    /\b(do not|don't|avoid)\s+(use\s+)?(web\s+)?search\b/i.test(q) ||
+    /\bunless (it is|it's)?\s*necessary\b/i.test(q);
+  const hasConceptualIntent =
+    /\b(explain|difference between|trade[-\s]?offs?|concept|principle|strategy|architecture|reasoning[-\s]?only|why)\b/i.test(
+      q,
+    );
+  const hasExternalEvidenceNeed =
+    hasUrl ||
+    hasGithubRepo ||
+    hasCurrentIntent ||
+    /\b(cite|citation|sources?|verify|verified|evidence)\b/i.test(q);
+  const shouldForceReasoningOnly =
+    hasConceptualIntent && !hasExternalEvidenceNeed && !hasCodeOrLogs;
   const recommendedModel = ((
     ["coding", "heavyReasoning", "complexWriting", "simple"] as const
   ).includes(analysis.recommendedModel as RouteModelKey)
@@ -133,6 +147,19 @@ export function buildQueryPlan(
       searchQuery: "",
       reasoning: "Code/log evidence already present in prompt.",
       recommendedModel: "coding",
+    };
+  }
+
+  if (shouldForceReasoningOnly || hasExplicitNoSearchInstruction) {
+    return {
+      taskType: "general_qa",
+      artifactType: "none",
+      groundingRequirement: "none",
+      retrievalStrategy: "none",
+      searchQuery: "",
+      reasoning:
+        "Conceptual/reasoning prompt detected; retrieval disabled unless explicit external evidence is required.",
+      recommendedModel: "simple",
     };
   }
 

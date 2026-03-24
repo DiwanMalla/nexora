@@ -1,56 +1,152 @@
 # 🌌 Nexora
 
-**AI Agentic Search & Action Platform** — One platform. Every AI. Search → Action.
+**Nexora** is an AI-powered **search, chat, and action platform** built for the next generation of agentic workflows.
 
-All planning and technical documentation live in the **`docs/`** folder.
+It combines:
 
----
+- **multi-model AI chat**
+- **agent-based task routing**
+- **web search + citation workflows**
+- **workspace / canvas-style interaction**
+- **developer-friendly full-stack architecture**
 
-## 📚 Documentation
-
-| What                                                  | Where                                                 |
-| ----------------------------------------------------- | ----------------------------------------------------- |
-| **Full product readme**                               | [docs/Readme.md](docs/Readme.md)                      |
-| **Browse all docs in one page**                       | Open [docs/docs.html](docs/docs.html) in your browser |
-| **Planning** (vision, P0–P3, security)                | [docs/Planning.md](docs/Planning.md)                  |
-| **Architecture** (stack, data flows)                  | [docs/Architecture.md](docs/Architecture.md)          |
-| **Environment variables**                             | [docs/ENV.md](docs/ENV.md)                            |
-| **Build milestones** (M1–M5)                          | [docs/MILESTONES.md](docs/MILESTONES.md)              |
-| **Database schema**                                   | [docs/DATABASE.md](docs/DATABASE.md)                  |
-| **API endpoints**                                     | [docs/API.md](docs/API.md)                            |
-| **Agents** (Researcher, Analyst, Coder)               | [docs/AGENTS.md](docs/AGENTS.md)                      |
-| **UI components**                                     | [docs/UI_COMPONENTS.md](docs/UI_COMPONENTS.md)        |
-| **Competitors** (positioning, start simple → advance) | [docs/COMPETITORS.md](docs/COMPETITORS.md)            |
+> **One platform. Every AI. Search → Action.**
 
 ---
 
-## 🚀 Quick start
+## ✨ Overview
+
+Nexora is designed as an **Agentic Search & Action Platform** where users can:
+
+- chat with multiple AI models
+- route tasks to specialized AI agents
+- perform web-backed research with citations
+- analyze data and structured inputs
+- generate code and execution-ready outputs
+- work inside a unified app experience instead of switching between tools
+
+The project is built with a modern TypeScript stack and is structured to support future expansion into:
+
+- AI workspaces
+- execution blocks
+- multi-agent orchestration
+- semantic agent discovery
+- subscriptions and usage tiers
+
+---
+
+## 🚀 Core Vision
+
+Traditional AI apps stop at answering questions.
+
+Nexora is built to go further:
+
+- **Search** → find relevant information
+- **Reason** → use the right model/agent for the task
+- **Act** → generate useful next steps, outputs, and workflows
+
+Examples of intended use cases:
+
+- research and fact-checking
+- side-by-side model comparisons
+- code generation and debugging
+- structured data analysis
+- exportable AI-assisted workflows
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+
+- **Next.js 16**
+- **React 19**
+- **TypeScript**
+- **Tailwind CSS**
+- **Framer Motion**
+- **Lucide React**
+
+### AI / Orchestration
+
+- **OpenRouter**
+- **Vercel AI SDK**
+- **LangGraph**
+- **Groq**
+- **Tavily**
+- **Firecrawl**
+- **E2B Code Interpreter**
+
+### Backend / Platform
+
+- **Supabase**
+- **Clerk**
+- **Stripe**
+- **Vercel**
+
+---
+
+## 📦 Key Features
+
+- **Multi-model AI chat**
+- **Agent-based routing**
+- **Research workflows with citations**
+- **Extensible architecture for search, analysis, and coding agents**
+- **Modern App Router codebase**
+- **Supabase-backed data layer**
+- **Clerk-based authentication**
+- **Stripe-ready monetization hooks**
+- **Tailwind-based design system**
+- **Project documentation for architecture, milestones, API, and database design**
+
+---
+
+## 🧠 Planned / Documented Agents
+
+The project documentation defines several core agent roles:
+
+### Researcher
+
+Best for:
+
+- deep search
+- fact-checking
+- citation-backed answers
+- web research workflows
+
+### Analyst
+
+Best for:
+
+- data summaries
+- CSV-style insights
+- structured analysis
+- trend extraction
+
+### Coder
+
+Best for:
+
+- code generation
+- debugging
+- sandbox execution
+- implementation help
+
+---
+
+## 📁 Project Structure
 
 ```bash
-cp .env.example .env.local   # Fill in keys (see docs/ENV.md)
-npm install
-npx supabase db push          # If using Supabase
-npm run dev
+nexora/
+├── docs/                    # Product, architecture, API, environment, milestones
+├── public/                  # Static assets
+├── src/
+│   ├── app/                 # Next.js App Router pages and API routes
+│   ├── components/          # UI components
+│   ├── lib/                 # Shared libraries, AI integrations, utilities
+│   └── agents/              # Agent logic (researcher, analyst, coder)
+├── .env.example
+├── next.config.ts
+├── tailwind.config.ts
+├── tsconfig.json
+└── package.json
 ```
-
-Open **http://localhost:3000**
-
----
-
-## 🛠️ Stack
-
-Next.js 16 · React 19 · TypeScript · Supabase · OpenRouter · Vercel AI SDK v4 · LangGraph · Tavily · Firecrawl · Vercel.
-
-See [docs/Readme.md](docs/Readme.md) and [docs/Architecture.md](docs/Architecture.md) for full details.
-
----
-
-## 🌍 Open Source
-
-Nexora is now open-source ready.
-
-- License: [MIT](LICENSE)
-- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Community rules: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- Issue templates: [.github/ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE)
-- PR template: [.github/pull_request_template.md](.github/pull_request_template.md)

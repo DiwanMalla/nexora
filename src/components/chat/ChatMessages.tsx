@@ -31,6 +31,8 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
   loadingHint?: string;
+  progressSteps?: Array<{ label: string; done: boolean }>;
+  activeStepLabel?: string;
   agentId?: string;
   /** Ref attached to the last message so parent can scroll it into view. */
   lastMessageRef?: React.RefObject<HTMLDivElement | null>;
@@ -187,26 +189,64 @@ function AssistantReplyImages({
   );
 }
 
-function TypingIndicator({ hint }: { hint?: string }) {
+function TypingIndicator({
+  hint,
+  steps = [],
+  activeLabel,
+}: {
+  hint?: string;
+  steps?: Array<{ label: string; done: boolean }>;
+  activeLabel?: string;
+}) {
   return (
-    <div className="ml-11 flex items-center gap-3 text-[var(--text-sm)] text-text-muted">
-      <span>{hint || "Nexora is thinking"}</span>
-      <span className="inline-flex items-center gap-1" aria-hidden>
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:0ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:180ms]" />
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:360ms]" />
-      </span>
+    <div className="ml-11 flex flex-col gap-2 text-[var(--text-sm)] text-text-muted">
+      <div className="flex items-center gap-3">
+        <span>{hint || "Nexora is thinking"}</span>
+        <span className="inline-flex items-center gap-1" aria-hidden>
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:0ms]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:180ms]" />
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400 [animation-delay:360ms]" />
+        </span>
+      </div>
+      {steps.length > 0 && (
+        <div className="flex flex-col gap-1 text-[var(--text-xs)]">
+          {steps.map((step) => (
+            <div key={step.label} className="flex items-center gap-2">
+              <span aria-hidden>{step.done ? "✓" : "…"}</span>
+              <span className={step.done ? "text-text-muted" : "text-text-dim"}>
+                {step.label}
+              </span>
+            </div>
+          ))}
+          {activeLabel && !steps.some((s) => s.label === activeLabel) && (
+            <div className="flex items-center gap-2">
+              <span aria-hidden>…</span>
+              <span className="text-text-dim">{activeLabel}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function AssistantTypingMessage({ hint }: { hint?: string }) {
+function AssistantTypingMessage({
+  hint,
+  steps,
+  activeLabel,
+}: {
+  hint?: string;
+  steps?: Array<{ label: string; done: boolean }>;
+  activeLabel?: string;
+}) {
   return (
     <div className="flex w-full justify-start flex-col animate-in fade-in slide-in-from-bottom-2 duration-700">
       <AssistantMessage
         content=""
         showTypingIndicator={false}
-        topContent={<TypingIndicator hint={hint} />}
+        topContent={
+          <TypingIndicator hint={hint} steps={steps} activeLabel={activeLabel} />
+        }
       />
     </div>
   );
@@ -216,6 +256,8 @@ export function ChatMessages({
   messages,
   isLoading,
   loadingHint,
+  progressSteps = [],
+  activeStepLabel,
   lastMessageRef,
   replyImages = [],
   replyImageQuery = null,
@@ -257,7 +299,11 @@ export function ChatMessages({
                   isLast ? (
                     <>
                       {shouldShowTypingIndicator ? (
-                        <TypingIndicator hint={loadingHint} />
+                        <TypingIndicator
+                          hint={loadingHint}
+                          steps={progressSteps}
+                          activeLabel={activeStepLabel}
+                        />
                       ) : null}
                     <AssistantReplyImages
                       images={replyImages}
@@ -275,7 +321,11 @@ export function ChatMessages({
       })}
 
       {shouldShowTypingIndicator && lastMessage?.role !== "assistant" && (
-        <AssistantTypingMessage hint={loadingHint} />
+        <AssistantTypingMessage
+          hint={loadingHint}
+          steps={progressSteps}
+          activeLabel={activeStepLabel}
+        />
       )}
     </div>
   );

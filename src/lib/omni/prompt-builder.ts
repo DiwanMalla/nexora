@@ -30,6 +30,11 @@ export function buildEnhancedSystemPrompt(params: {
   parts.push(`Query Category: ${analysis.category}`);
   parts.push(`Retrieval Strategy: ${retrievalStrategy}`);
   parts.push(`Web Search Used: ${webSearchUsed ? "Yes" : "No"}`);
+  if (retrievalStrategy === "none") {
+    parts.push(
+      "Reasoning-only response mode: Keep the answer concise and direct by default (prefer 4-8 bullets or short sections). Do not produce long-form essay style unless the user explicitly asks for depth.",
+    );
+  }
 
   if (searchResponse) {
     if (searchResponse.answer) {
@@ -55,6 +60,15 @@ export function buildEnhancedSystemPrompt(params: {
     );
     parts.push(
       "You already have successful retrieval + parsing. It is incorrect to claim package.json/.env/docs were not accessed when they appear in this evidence block.",
+    );
+    parts.push(
+      "Milestone grounding rule: Entries from docs/MILESTONES.md describe intended roadmap/scope, not verified completion status. Do not state a milestone is complete unless completion is explicitly evidenced elsewhere.",
+    );
+    parts.push(
+      "Scope-boundary rule for repo summaries: Only claim what is directly supported by retrieved files. If full source coverage (for example the broader src tree) was not inspected, explicitly state that broader implementation status is uncertain.",
+    );
+    parts.push(
+      "Avoid speculative phrasing such as 'likely pending in unsubmitted code' unless there is direct evidence. Prefer: 'From retrieved files, I can verify X; broader status remains unverified in this run.'",
     );
   }
 

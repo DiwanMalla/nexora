@@ -73,6 +73,36 @@ async function tryFetchText(url: string): Promise<string> {
   return text;
 }
 
+function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isShellLikeHtml(raw: string, visibleText: string): boolean {
+  const lower = raw.toLowerCase();
+  const hasFrameworkShell =
+    /__next|id="__next"|_next\/static|application\/json|hydration|webpack|reactroot/i.test(
+      raw,
+    ) || /next\.js|vercel/i.test(lower);
+  const hasBodyTag = /<body[\s>]/i.test(raw);
+  const lowVisibleContent = visibleText.length < 900;
+  return hasBodyTag && hasFrameworkShell && lowVisibleContent;
+}
+
+async function fetchViaRenderedMirror(url: string): Promise<string> {
+  const mirrorUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//i, "")}`;
+  const text = await tryFetchText(mirrorUrl);
+  return text;
+}
+
 async function retrieveFromDirectUrls(
   urls: string[],
   attempts: RetrievalAttempt[],
@@ -80,7 +110,35 @@ async function retrieveFromDirectUrls(
   const evidence: RetrievalEvidence = { sources: [], extractedFields: [] };
   for (const url of urls) {
     try {
-      const text = await tryFetchText(url);
+      const raw = await tryFetchText(url);
+      const looksHtml = /<html[\s>]|<body[\s>]|<!doctype html/i.test(raw);
+      let text = raw;
+      if (looksHtml) {
+        const visible = stripHtmlToText(raw);
+        if (isShellLikeHtml(raw, visible)) {
+          attempts.push({
+            strategy: "direct_url_fetch",
+            target: `${url}#raw-shell`,
+            success: false,
+            error: "Shell-only HTML detected; retrying with rendered mirror",
+          });
+          const rendered = await fetchViaRenderedMirror(url);
+          const renderedVisible = stripHtmlToText(rendered);
+          if (renderedVisible.length < 700) {
+            throw new Error(
+              "Shell-only/low-content page even after rendered retry",
+            );
+          }
+          text = renderedVisible;
+          attempts.push({
+            strategy: "direct_url_fetch",
+            target: `${url}#rendered-mirror`,
+            success: true,
+          });
+        } else {
+          text = visible;
+        }
+      }
       attempts.push({ strategy: "direct_url_fetch", target: url, success: true });
       evidence.sources.push({
         title: `Fetched URL: ${url}`,
@@ -389,7 +447,7 @@ export function buildRepoEvidenceBlock(parsed: RepoParsedEvidence): string {
     "docs/API.md routes:",
     routeLines || "- none",
     "",
-    "docs/MILESTONES.md headings:",
+    "docs/MILESTONES.md headings (planned scope, not completion proof):",
     milestoneLines || "- none",
     "",
     "docs/Architecture.md summary:",
