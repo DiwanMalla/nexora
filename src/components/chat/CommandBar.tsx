@@ -60,6 +60,8 @@ export function CommandBar({
     selectedAgent,
     selectedModel,
     setSelectedModel,
+    omniProvider,
+    setOmniProvider,
   } = useWorkspace();
 
   const value = externalInput !== undefined ? externalInput : internalValue;
@@ -184,11 +186,43 @@ export function CommandBar({
               />
             ) : (
               selectedAgent !== "aichat" && (
-                <div className="flex items-center gap-1.5 rounded-full bg-surface-overlay px-2.5 py-1 border border-border">
-                  <Cpu className="h-3 w-3 text-text-dim" />
-                  <span className="text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-dim">
-                    Agentic
-                  </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 rounded-full border border-border bg-surface-overlay px-2.5 py-1">
+                    <Cpu className="h-3 w-3 text-text-dim" />
+                    <span className="text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-dim">
+                      Agentic
+                    </span>
+                  </div>
+                  {selectedAgent === "omni" && (
+                    <div className="inline-flex items-center rounded-full border border-border bg-surface-overlay p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setOmniProvider("groq")}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition-all",
+                          omniProvider === "groq"
+                            ? "bg-surface-invert text-surface-invert-text"
+                            : "text-text-dim hover:text-text",
+                        )}
+                        title="Use Groq provider"
+                      >
+                        Groq
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOmniProvider("openrouter")}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition-all",
+                          omniProvider === "openrouter"
+                            ? "bg-surface-invert text-surface-invert-text"
+                            : "text-text-dim hover:text-text",
+                        )}
+                        title="Use OpenRouter provider"
+                      >
+                        OpenRouter
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             )}

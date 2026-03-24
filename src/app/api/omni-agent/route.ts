@@ -25,6 +25,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { OMNI_MODELS } from "@/lib/omni-router";
 import { getNexoraSystemPrompt } from "@/lib/nexora-system-prompt";
 import { getOpenRouter } from "@/lib/ai/providers";
+import { OPENROUTER_OMNI_MODEL_MAP } from "@/lib/ai/openrouter-models";
 import {
   braveSearch,
   mergeSearchResponses,
@@ -36,13 +37,6 @@ import {
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
 
 type OmniProviderName = "groq" | "openrouter";
-
-const OPENROUTER_DEFAULT_MODELS = {
-  coding: "openai/gpt-4o-mini",
-  heavyReasoning: "anthropic/claude-3.7-sonnet",
-  complexWriting: "google/gemini-2.0-flash-001",
-  simple: "openai/gpt-4o-mini",
-} as const;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +73,8 @@ interface FactCheckSummary {
   notes: string;
   claimChecks: ClaimVerification[];
 }
+
+type GenerationModel = Parameters<typeof generateText>[0]["model"];
 
 type UserPersona = "student" | "developer" | "business" | "general";
 
@@ -307,7 +303,7 @@ function postProcessResponse(rawText: string, userQuery: string): string {
 async function maybeRefineWithLightweightAI(
   draftText: string,
   userQuery: string,
-  model: any,
+  model: GenerationModel,
 ): Promise<string> {
   if (process.env.OMNI_POSTPROCESS_REFINE !== "true") {
     return draftText;
@@ -326,7 +322,10 @@ async function maybeRefineWithLightweightAI(
   }
 }
 
-function getOmniProvider(): OmniProviderName {
+function getOmniProvider(requestedProvider: string | null): OmniProviderName {
+  if (requestedProvider === "openrouter" || requestedProvider === "groq") {
+    return requestedProvider;
+  }
   return process.env.OMNI_PROVIDER === "openrouter" ? "openrouter" : "groq";
 }
 
@@ -334,6 +333,11 @@ function getModelIdForProvider(
   provider: OmniProviderName,
   routeKey: keyof typeof OMNI_MODELS,
 ): string {
+  const legacyAliases: Record<string, string> = {
+    "moonshotai/kimi-k2:free": "moonshotai/kimi-k2.5",
+    "deepseek/deepseek-chat-v3-0324:free": "deepseek/deepseek-chat-v3-0324",
+  };
+
   if (provider === "openrouter") {
     const envMap: Record<keyof typeof OMNI_MODELS, string | undefined> = {
       coding: process.env.OPENROUTER_OMNI_MODEL_CODING,
@@ -341,7 +345,8 @@ function getModelIdForProvider(
       complexWriting: process.env.OPENROUTER_OMNI_MODEL_COMPLEX_WRITING,
       simple: process.env.OPENROUTER_OMNI_MODEL_SIMPLE,
     };
-    return envMap[routeKey] || OPENROUTER_DEFAULT_MODELS[routeKey];
+    const chosen = envMap[routeKey] || OPENROUTER_OMNI_MODEL_MAP[routeKey];
+    return legacyAliases[chosen] || chosen;
   }
 
   return OMNI_MODELS[routeKey];
@@ -358,7 +363,7 @@ function createModelFactory(provider: OmniProviderName) {
 
 async function analyzeQuery(
   question: string,
-  model: any,
+  model: GenerationModel,
 ): Promise<QueryAnalysis & { recommendedModel: string }> {
   const analysisSchema = z.object({
     category: z.enum([
@@ -724,6 +729,7 @@ Response style guidance:
 
 export async function POST(req: Request) {
   try {
+    const requestedProvider = req.headers.get("x-omni-provider");
     const body = (await req.json()) as { messages?: IncomingMessage[] };
     const raw = Array.isArray(body.messages) ? body.messages : [];
     const messages = toModelMessages(raw);
@@ -738,7 +744,7 @@ export async function POST(req: Request) {
       `  Prompt: "${lastContent.slice(0, 100)}${lastContent.length > 100 ? "..." : ""}"`,
     );
 
-    const providerName = getOmniProvider();
+    const providerName = getOmniProvider(requestedProvider);
     const modelFactory = createModelFactory(providerName);
     const simpleModelId = getModelIdForProvider(providerName, "simple");
     const simpleModel = modelFactory(
@@ -906,20 +912,6 @@ export async function POST(req: Request) {
     const totalPipelineMs = Date.now() - t0;
     console.log(`  ⏱  Pipeline pre-processing took ${totalPipelineMs}ms total`);
 
-    // Build pipeline tracking text that will appear at the top of the response
-    const trackingLines: string[] = [];
-    for (const step of pipelineSteps) {
-      const icon =
-        step.status === "done" ? "✅" : step.status === "error" ? "❌" : "⏭️";
-      const time = step.durationMs != null ? ` *(${step.durationMs}ms)*` : "";
-      const detail = step.detail ? ` — ${step.detail}` : "";
-      trackingLines.push(`> ${icon} **${step.name}**${detail}${time}`);
-    }
-    trackingLines.push(
-      `> 🤖 **Generating Answer** — Streaming from ${modelId.split("/").pop()}...`,
-    );
-    const trackingBlock = trackingLines.join("\n") + "\n\n---\n\n";
-
     const messagesWithSystem: Message[] = [
       { role: "system", content: systemPrompt },
       ...messages,
@@ -939,67 +931,18 @@ export async function POST(req: Request) {
         const llmStream = result.toUIMessageStream();
         const reader = llmStream.getReader();
 
-        let textStartChunk: any | null = null;
-        let textEndChunk: any | null = null;
-        let rawModelText = "";
+        type WriterChunk = Parameters<typeof writer.write>[0];
+        let injectedTracking = false;
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const chunk = value as any;
-
-          if (chunk.type === "text-start") {
-            textStartChunk = chunk;
-            continue;
+          const chunk = value as WriterChunk;
+          if (!injectedTracking && chunk.type === "text-start") {
+            injectedTracking = true;
           }
-
-          if (chunk.type === "text-delta") {
-            rawModelText += chunk.delta ?? "";
-            continue;
-          }
-
-          if (chunk.type === "text-end") {
-            textEndChunk = chunk;
-            continue;
-          }
-
           writer.write(chunk);
         }
-
-        const simplePostProcessModelId = getModelIdForProvider(
-          providerName,
-          "simple",
-        );
-        const processedTextBase = postProcessResponse(
-          rawModelText,
-          lastContent,
-        );
-        const processedText = await maybeRefineWithLightweightAI(
-          processedTextBase,
-          lastContent,
-          modelFactory(simplePostProcessModelId as Parameters<typeof groq>[0]),
-        );
-
-        const textId = textStartChunk?.id ?? `omni-${Date.now()}`;
-        writer.write(
-          textStartChunk ?? {
-            type: "text-start",
-            id: textId,
-          },
-        );
-        writer.write({
-          type: "text-delta",
-          id: textId,
-          delta: `${trackingBlock}${processedText}`,
-        });
-        writer.write(
-          textEndChunk ?? {
-            type: "text-end",
-            id: textId,
-          },
-        );
       },
     });
 

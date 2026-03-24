@@ -19,6 +19,8 @@ interface AppearanceTabProps {
   onAnimationsEnabledChange: (enabled: boolean) => void;
 }
 
+type ThemeOption = "light" | "dark" | "system";
+
 export function AppearanceTab({
   theme,
   onThemeChange,
@@ -27,6 +29,16 @@ export function AppearanceTab({
   animationsEnabled,
   onAnimationsEnabledChange,
 }: AppearanceTabProps) {
+  const themeOptions: Array<{
+    id: ThemeOption;
+    icon: typeof Sun;
+    label: string;
+  }> = [
+    { id: "light", icon: Sun, label: "Light" },
+    { id: "dark", icon: Moon, label: "Dark" },
+    { id: "system", icon: Monitor, label: "System" },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Theme Selection */}
@@ -35,14 +47,10 @@ export function AppearanceTab({
           Interface Theme
         </h3>
         <div className="grid grid-cols-3 gap-3">
-          {[
-            { id: "light", icon: Sun, label: "Light" },
-            { id: "dark", icon: Moon, label: "Dark" },
-            { id: "system", icon: Monitor, label: "System" },
-          ].map((option) => (
+          {themeOptions.map((option) => (
             <button
               key={option.id}
-              onClick={() => onThemeChange(option.id as any)}
+              onClick={() => onThemeChange(option.id)}
               className={cn(
                 "flex flex-col items-center gap-3 rounded-xl border p-4 transition-all hover:bg-surface-overlay",
                 theme === option.id

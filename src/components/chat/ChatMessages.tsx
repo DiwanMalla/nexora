@@ -10,7 +10,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Hexagon } from "lucide-react";
-import { cn, stripThinkBlocks, hasUnclosedThink } from "@/lib/utils";
+import { cn, stripThinkBlocks } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
 import { MessageActions } from "./MessageActions";
 
@@ -33,8 +33,6 @@ interface ChatMessagesProps {
   agentId?: string;
   /** Ref attached to the last message so parent can scroll it into view. */
   lastMessageRef?: React.RefObject<HTMLDivElement | null>;
-  /** Optional routing info (e.g. OmniAgent model + reason) shown below last assistant message. */
-  routingMetadata?: RoutingMetadata | null;
   replyImages?: ReplyImage[];
   replyImageQuery?: string | null;
   replyImageState?: ReplyImageState;
@@ -59,12 +57,10 @@ function UserMessage({ content }: { content: string }) {
 function AssistantMessage({
   content,
   model,
-  showThinkingIndicator,
   topContent,
 }: {
   content: string;
   model?: string;
-  showThinkingIndicator?: boolean;
   topContent?: React.ReactNode;
 }) {
   const visibleContent = stripThinkBlocks(content);
@@ -79,14 +75,6 @@ function AssistantMessage({
           Nexora
         </span>
       </div>
-
-      {/* Thinking indicator (when model is inside <think> block during streaming) */}
-      {showThinkingIndicator && (
-        <div className="flex items-center gap-2 pl-11 text-[var(--text-sm)] text-text-muted">
-          <span aria-hidden>💡</span>
-          <span>Thinking...</span>
-        </div>
-      )}
 
       {topContent}
 
@@ -191,7 +179,6 @@ export function ChatMessages({
   messages,
   isLoading,
   lastMessageRef,
-  routingMetadata,
   replyImages = [],
   replyImageQuery = null,
   replyImageState = "idle",
@@ -199,18 +186,10 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   if (messages.length === 0) return null;
 
-  const lastIsAssistant =
-    messages.length > 0 && messages[messages.length - 1].role === "assistant";
-
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
       {messages.map((m, idx) => {
         const isLast = idx === messages.length - 1;
-        const showThinking =
-          isLast &&
-          isLoading &&
-          m.role === "assistant" &&
-          hasUnclosedThink(m.content);
         return (
           <div
             key={m.id}
@@ -226,7 +205,6 @@ export function ChatMessages({
               <AssistantMessage
                 content={m.content}
                 model={m.model}
-                showThinkingIndicator={showThinking}
                 topContent={
                   isLast ? (
                     <AssistantReplyImages
@@ -243,29 +221,7 @@ export function ChatMessages({
         );
       })}
 
-      {lastIsAssistant && routingMetadata && (
-        <div
-          className="flex flex-wrap items-center gap-2 pl-11 text-[var(--text-xs)] text-text-muted"
-          data-routing-badge
-        >
-          <span>
-            <strong className="text-text-dim/90">Routed to:</strong>{" "}
-            {routingMetadata.model.split("/").pop() ?? routingMetadata.model}
-          </span>
-          <span className="text-border">·</span>
-          <span>
-            <strong className="text-text-dim/90">Reason:</strong>{" "}
-            {routingMetadata.reason}
-          </span>
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="flex items-center gap-2 pl-11 text-[var(--text-sm)] text-text-muted">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-violet-500" />
-          <span>Thinking...</span>
-        </div>
-      )}
+      {isLoading && null}
     </div>
   );
 }
