@@ -89,8 +89,58 @@ function stripHtmlToText(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/&apos;/gi, "'")
+    .replace(/&rsquo;|&lsquo;/gi, "'")
+    .replace(/&ldquo;|&rdquo;/gi, '"')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec) =>
+      String.fromCharCode(parseInt(dec, 10)),
+    )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function removeLeadingChromeLines(text: string): string {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const banned = [
+    /table of contents/i,
+    /on this page/i,
+    /contents/i,
+    /navigation/i,
+    /skip to content/i,
+    /skip/i,
+    /menu/i,
+    /search/i,
+    /related links/i,
+    /previous/i,
+    /next/i,
+    /copyright/i,
+    /terms of service/i,
+    /privacy policy/i,
+  ];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i]!;
+    if (banned.some((b) => b.test(line))) {
+      i++;
+      continue;
+    }
+    // Drop tiny fragments that look like scrape artifacts.
+    if (line.length <= 3 && !/[A-Za-z]/.test(line)) {
+      i++;
+      continue;
+    }
+    break;
+  }
+
+  return lines.slice(i).join("\n");
 }
 
 function countHeadingTags(html: string): number {
@@ -696,9 +746,9 @@ function extractHtmlHeadings(html: string): {
     const chunk = html.slice(cur.index, nextIndex);
     const plainChunk = stripHtmlToText(chunk);
 
-    // Remove repeated boilerplate intro from each excerpt by focusing on the first "paragraph-like" content.
-    const rawExcerpt = plainChunk
-      .replace(/^\s*(?:[A-Z][^\n]{2,40}\s*){0,2}/i, "")
+    // Remove page chrome/navigation lines, but do NOT strip real sentence starters
+    // (avoids cutting "Step-by-step..." into "by-step...").
+    const rawExcerpt = removeLeadingChromeLines(plainChunk)
       .replace(/\s+/g, " ")
       .trim();
 
@@ -750,6 +800,8 @@ function truncateHtmlExcerptToWordBoundary(input: string, maxChars: number): str
 
 function cleanExcerptStartForHtml(input: string): string {
   let t = input.trim();
+  // Occasionally numeric-entity fragments survive stripping; drop "27;"-style prefixes.
+  t = t.replace(/^\d+;/, "");
   t = t.replace(/^[\W_]+/g, "");
   const parts = t.split(/\s+/).filter(Boolean);
   if (parts.length < 2) return t;
