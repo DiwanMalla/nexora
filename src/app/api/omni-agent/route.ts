@@ -654,6 +654,17 @@ function lightweightResearchSummary(results: TavilyResult[]): string {
   return ["## Key Retrieved Points", ...lines].join("\n");
 }
 
+function shouldUseLightweightWebSynthesis(results: TavilyResult[]): boolean {
+  if (!results.length) return false;
+  const top = results.slice(0, 4);
+  const domains = top.map((r) => getDomain(r.url));
+  const officialishCount = domains.filter((d) => scoreDomainCredibility(d) >= 0.85).length;
+  const avgScore = top.reduce((sum, r) => sum + r.score, 0) / top.length;
+  // If we already have a couple of high-trust/official sources and blended relevance is strong,
+  // deep analysis + fact-checking tends to be unnecessary latency.
+  return officialishCount >= 2 || avgScore >= 0.78;
+}
+
 function capSourcesForSynthesis(
   response: TavilySearchResponse,
   maxSources: number,
@@ -699,6 +710,10 @@ function capSourcesForSynthesis(
   const sorted = [...response.results].sort((a, b) => {
     const officialDelta = Number(isOfficial(b.url)) - Number(isOfficial(a.url));
     if (officialDelta !== 0) return officialDelta;
+    const trustB = scoreDomainCredibility(getDomain(b.url));
+    const trustA = scoreDomainCredibility(getDomain(a.url));
+    const trustDelta = trustB - trustA;
+    if (trustDelta !== 0) return trustDelta;
     return b.score - a.score;
   });
 
@@ -1337,6 +1352,13 @@ export async function POST(req: Request) {
       }
     }
 
+    let lightweightWebSynthesisPath = lightweightComparisonPath;
+    if (searchResponse && !lightweightWebSynthesisPath) {
+      lightweightWebSynthesisPath = shouldUseLightweightWebSynthesis(
+        searchResponse.results,
+      );
+    }
+
     if (
       queryPlan.retrievalStrategy === "direct_url_fetch" &&
       isStrictPageSummaryPrompt(lastContent) &&
@@ -1372,7 +1394,7 @@ export async function POST(req: Request) {
 
     // ── Step 3: Deep Analysis ───────────────────────────────────────────
     let analysisText = "";
-    if (searchResponse && !lightweightComparisonPath) {
+    if (searchResponse && !lightweightWebSynthesisPath) {
       console.log("  [3/6] 🧠 Running deep analysis...");
       const t3 = Date.now();
       analysisText = deepAnalyze(searchResponse.results);
@@ -1384,7 +1406,7 @@ export async function POST(req: Request) {
         durationMs: step3Time,
       });
       console.log(`        ✅ Deep analysis complete (${step3Time}ms)`);
-    } else if (searchResponse && lightweightComparisonPath) {
+    } else if (searchResponse && lightweightWebSynthesisPath) {
       console.log("  [3/6] 🧠 Deep analysis — lightweight mode");
       const t3 = Date.now();
       analysisText = lightweightResearchSummary(searchResponse.results);
@@ -1392,7 +1414,9 @@ export async function POST(req: Request) {
       pipelineSteps.push({
         name: "Deep Analysis",
         status: "done",
-        detail: "Used lightweight summary path for comparison task",
+        detail: lightweightComparisonPath
+          ? "Used lightweight summary path for comparison task"
+          : "Used lightweight summary path (evidence clear)",
         durationMs: step3Time,
       });
     } else {
@@ -1402,7 +1426,7 @@ export async function POST(req: Request) {
 
     // ── Step 4: Fact Check ──────────────────────────────────────────────
     let factCheckResult: FactCheckSummary | null = null;
-    if (searchResponse && !lightweightComparisonPath) {
+    if (searchResponse && !lightweightWebSynthesisPath) {
       console.log("  [4/6] ✓  Fact-checking across sources...");
       const t4 = Date.now();
       factCheckResult = factCheck(searchResponse.results);
@@ -1414,11 +1438,13 @@ export async function POST(req: Request) {
         durationMs: step4Time,
       });
       console.log(`        ✅ ${factCheckResult.notes} (${step4Time}ms)`);
-    } else if (searchResponse && lightweightComparisonPath) {
+    } else if (searchResponse && lightweightWebSynthesisPath) {
       pipelineSteps.push({
         name: "Fact Check",
         status: "skipped",
-        detail: "Skipped for lightweight comparison path",
+        detail: lightweightComparisonPath
+          ? "Skipped for lightweight comparison path"
+          : "Skipped for lightweight synthesis (evidence clear)",
       });
       console.log("  [4/6] ✓  Fact check — skipped (lightweight path)");
     } else {
