@@ -76,11 +76,16 @@ async function tryFetchText(url: string): Promise<string> {
 }
 
 function stripHtmlToText(html: string): string {
+  // Remove scripts/styles and common page chrome so excerpts reflect main content.
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -553,11 +558,30 @@ function extractMarkdownHeadings(markdown: string): {
   let currentHeading: string | null = null;
   let currentBuf: string[] = [];
 
+  const cleanLinesForSection = (input: string): string => {
+    // Remove common docs chrome inside scraped markdown.
+    const banned = [
+      /table of contents/i,
+      /on this page/i,
+      /contents/i,
+      /navigation/i,
+      /skip to content/i,
+      /^menu\s*$/i,
+    ];
+    const cleaned = input
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !banned.some((b) => b.test(l)))
+      .join("\n");
+    return cleaned.replace(/\s+/g, " ").trim();
+  };
+
   const flush = () => {
     if (!currentHeading) return;
     const joined = currentBuf.join("\n").trim().replace(/\n{3,}/g, "\n\n");
-    const compact = joined.replace(/\s+/g, " ").trim();
-    const excerpt = compact.slice(0, 420);
+    const compact = cleanLinesForSection(joined);
+    const excerpt = compact.slice(0, 260);
+
     if (excerpt) {
       sections.push({ heading: currentHeading, excerpt });
     }
@@ -576,35 +600,80 @@ function extractMarkdownHeadings(markdown: string): {
   }
   flush();
 
-  return { headings: [...new Set(headings)], sections: sections.slice(0, 8) };
+  // Dedup overlapping/near-identical excerpts (intro fragments tend to repeat).
+  const deduped: typeof sections = [];
+  const seen = new Set<string>();
+  for (const s of sections) {
+    const key = `${s.heading.toLowerCase()}::${s.excerpt.toLowerCase().slice(0, 70)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(s);
+  }
+
+  return { headings: [...new Set(headings)].slice(0, 12), sections: deduped.slice(0, 8) };
 }
 
 function extractHtmlHeadings(html: string): {
   headings: string[];
   sections: Array<{ heading: string; excerpt: string }>;
 } {
-  const plain = stripHtmlToText(html);
-  const headingMatches = Array.from(
-    html.matchAll(/<(h1|h2|h3)[^>]*>([\s\S]*?)<\/\1>/gi),
-  ).slice(0, 15);
+  const matches = Array.from(
+    html.matchAll(/<(h1|h2|h3)([^>]*)>([\s\S]*?)<\/\1>/gi),
+  ).slice(0, 20);
 
-  const headings = headingMatches
-    .map((m) => (m[2] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
-    .filter((h) => h.length >= 3);
+  const normalizedMatches = matches
+    .map((m) => {
+      const headingText = (m[3] ?? "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return {
+        headingText,
+        index: m.index ?? 0,
+      };
+    })
+    .filter((m) => m.headingText.length >= 3);
 
-  const uniqueHeadings = [...new Set(headings)].slice(0, 12);
+  const uniqueHeadingOrder: string[] = [];
+  const seenHeading = new Set<string>();
+  for (const m of normalizedMatches) {
+    const key = m.headingText.toLowerCase();
+    if (seenHeading.has(key)) continue;
+    seenHeading.add(key);
+    uniqueHeadingOrder.push(m.headingText);
+    if (uniqueHeadingOrder.length >= 12) break;
+  }
 
   const sections: Array<{ heading: string; excerpt: string }> = [];
-  for (const h of uniqueHeadings) {
-    const idx = plain.toLowerCase().indexOf(h.toLowerCase());
-    if (idx === -1) continue;
-    const excerpt = plain.slice(idx, idx + 320).replace(/\s+/g, " ").trim();
+  for (let i = 0; i < normalizedMatches.length; i++) {
+    const cur = normalizedMatches[i]!;
+    const headingKey = cur.headingText.toLowerCase();
+    if (!uniqueHeadingOrder.some((h) => h.toLowerCase() === headingKey)) continue;
+
+    // Grab HTML chunk from this heading until the next heading of same level/order.
+    const nextIndex = normalizedMatches[i + 1]?.index ?? html.length;
+    const chunk = html.slice(cur.index, nextIndex);
+    const plainChunk = stripHtmlToText(chunk);
+
+    // Remove repeated boilerplate intro from each excerpt by focusing on the first "paragraph-like" content.
+    const excerpt = plainChunk
+      .replace(/^\s*(?:[A-Z][^\n]{2,40}\s*){0,2}/i, "")
+      .slice(0, 240)
+      .replace(/\s+/g, " ")
+      .trim();
+
     if (!excerpt) continue;
-    sections.push({ heading: h, excerpt });
+
+    const dedupeKey = `${headingKey}::${excerpt.toLowerCase().slice(0, 60)}`;
+    if (sections.some((s) => `${s.heading.toLowerCase()}::${s.excerpt.toLowerCase().slice(0, 60)}` === dedupeKey)) {
+      continue;
+    }
+
+    sections.push({ heading: cur.headingText, excerpt });
     if (sections.length >= 8) break;
   }
 
-  return { headings: uniqueHeadings, sections };
+  return { headings: uniqueHeadingOrder, sections };
 }
 
 export function parseDirectUrlEvidence(evidence: RetrievalEvidence): DirectUrlParsedEvidence {
@@ -656,17 +725,24 @@ export function formatDirectUrlPageExtractionReport(
   parsed: DirectUrlParsedEvidence,
 ): string {
   const headings = parsed.headings.slice(0, 15);
-  const sections = parsed.sections.slice(0, 6);
+  const sections = parsed.sections.slice(0, 7);
 
   const headingsBlock =
-    headings.length > 0 ? headings.map((h) => `- ${h}`).join("\n") : "- none";
+    headings.length > 0
+      ? headings.map((h) => `- ${h}`).join("\n")
+      : "- none";
 
   const sectionsBlock =
     sections.length > 0
       ? sections
-          .map((s) => `### ${s.heading}\n${s.excerpt || "- none"}`)
-          .join("\n\n")
-      : "No section excerpts could be extracted deterministically from the retrieved content.";
+          .map((s) => {
+            const excerpt = s.excerpt?.trim() || "";
+            const short =
+              excerpt.length > 160 ? `${excerpt.slice(0, 157).trim()}...` : excerpt;
+            return `- ${s.heading}: ${short || "not present in the retrieved content"}`;
+          })
+          .join("\n")
+      : "- none";
 
   return [
     "## Direct page extraction (page-explicit)",
@@ -674,7 +750,7 @@ export function formatDirectUrlPageExtractionReport(
     "## Headings",
     headingsBlock,
     "",
-    "## Key sections (excerpts)",
+    "## Key sections (verified excerpts)",
     sectionsBlock,
   ].join("\n");
 }
