@@ -576,14 +576,55 @@ function extractMarkdownHeadings(markdown: string): {
     return cleaned.replace(/\s+/g, " ").trim();
   };
 
+  const truncateToWordBoundary = (input: string, maxChars: number): string => {
+    const trimmed = input.trim();
+    if (trimmed.length <= maxChars) return trimmed;
+    const slice = trimmed.slice(0, maxChars);
+    const lastSpace = slice.lastIndexOf(" ");
+    const lastPunct = Math.max(
+      slice.lastIndexOf("."),
+      slice.lastIndexOf("!"),
+      slice.lastIndexOf("?"),
+      slice.lastIndexOf(";"),
+      slice.lastIndexOf(","),
+    );
+    const cutAt = Math.max(lastSpace, lastPunct);
+    const candidate = slice.slice(0, cutAt + 1).trim();
+    return candidate || slice.trim();
+  };
+
+  const cleanExcerptStart = (input: string): string => {
+    let t = input.trim();
+    t = t.replace(/^[\W_]+/g, "");
+    const parts = t.split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return t;
+    const first = parts[0] ?? "";
+    const looksTailFragment =
+      first.length <= 6 &&
+      /^[a-z]/.test(first) &&
+      !/[A-Z]/.test(first) &&
+      !/\d/.test(first) &&
+      (first.includes(".") ||
+        first.startsWith("-") ||
+        first.startsWith("–") ||
+        first.startsWith("—") ||
+        first.endsWith(","));
+    if (looksTailFragment) {
+      parts.shift();
+      return parts.join(" ").trim();
+    }
+    return t;
+  };
+
   const flush = () => {
     if (!currentHeading) return;
     const joined = currentBuf.join("\n").trim().replace(/\n{3,}/g, "\n\n");
     const compact = cleanLinesForSection(joined);
-    const excerpt = compact.slice(0, 260);
+    const excerpt = truncateToWordBoundary(compact, 260);
 
     if (excerpt) {
-      sections.push({ heading: currentHeading, excerpt });
+      const cleaned = cleanExcerptStart(excerpt);
+      if (cleaned) sections.push({ heading: currentHeading, excerpt: cleaned });
     }
     currentBuf = [];
   };
@@ -656,24 +697,78 @@ function extractHtmlHeadings(html: string): {
     const plainChunk = stripHtmlToText(chunk);
 
     // Remove repeated boilerplate intro from each excerpt by focusing on the first "paragraph-like" content.
-    const excerpt = plainChunk
+    const rawExcerpt = plainChunk
       .replace(/^\s*(?:[A-Z][^\n]{2,40}\s*){0,2}/i, "")
-      .slice(0, 240)
       .replace(/\s+/g, " ")
       .trim();
 
-    if (!excerpt) continue;
+    const excerpt = rawExcerpt.length > 240 ? rawExcerpt.slice(0, 240).trim() : rawExcerpt;
+    const excerptFinal = excerpt
+      ? truncateHtmlExcerptToWordBoundary(excerpt, 240)
+      : "";
+
+    const cleanedStart = excerptFinal
+      ? cleanExcerptStartForHtml(excerptFinal)
+      : "";
+
+    if (!cleanedStart) continue;
 
     const dedupeKey = `${headingKey}::${excerpt.toLowerCase().slice(0, 60)}`;
-    if (sections.some((s) => `${s.heading.toLowerCase()}::${s.excerpt.toLowerCase().slice(0, 60)}` === dedupeKey)) {
+    if (
+      sections.some(
+        (s) =>
+          `${s.heading.toLowerCase()}::${s.excerpt.toLowerCase().slice(0, 60)}` ===
+          dedupeKey,
+      )
+    ) {
       continue;
     }
 
-    sections.push({ heading: cur.headingText, excerpt });
+    sections.push({ heading: cur.headingText, excerpt: cleanedStart });
     if (sections.length >= 8) break;
   }
 
   return { headings: uniqueHeadingOrder, sections };
+}
+
+function truncateHtmlExcerptToWordBoundary(input: string, maxChars: number): string {
+  const trimmed = input.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const slice = trimmed.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  const lastPunct = Math.max(
+    slice.lastIndexOf("."),
+    slice.lastIndexOf("!"),
+    slice.lastIndexOf("?"),
+    slice.lastIndexOf(";"),
+    slice.lastIndexOf(","),
+  );
+  const cutAt = Math.max(lastSpace, lastPunct);
+  const candidate = slice.slice(0, cutAt + 1).trim();
+  return candidate || slice.trim();
+}
+
+function cleanExcerptStartForHtml(input: string): string {
+  let t = input.trim();
+  t = t.replace(/^[\W_]+/g, "");
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return t;
+  const first = parts[0] ?? "";
+  const looksTailFragment =
+    first.length <= 6 &&
+    /^[a-z]/.test(first) &&
+    !/[A-Z]/.test(first) &&
+    !/\d/.test(first) &&
+    (first.includes(".") ||
+      first.startsWith("-") ||
+      first.startsWith("–") ||
+      first.startsWith("—") ||
+      first.endsWith(","));
+  if (looksTailFragment) {
+    parts.shift();
+    return parts.join(" ").trim();
+  }
+  return t;
 }
 
 export function parseDirectUrlEvidence(evidence: RetrievalEvidence): DirectUrlParsedEvidence {
