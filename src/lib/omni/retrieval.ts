@@ -746,9 +746,24 @@ function extractHtmlHeadings(html: string): {
     const chunk = html.slice(cur.index, nextIndex);
     const plainChunk = stripHtmlToText(chunk);
 
-    // Remove page chrome/navigation lines, but do NOT strip real sentence starters
-    // (avoids cutting "Step-by-step..." into "by-step...").
-    const rawExcerpt = removeLeadingChromeLines(plainChunk)
+    // Strip the heading text itself from the excerpt so the excerpt begins at
+    // the first local sentence/description (avoids slicing artifacts and repeated
+    // page-intro fragments).
+    const escapeRegExp = (s: string): string =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const headingRegex = new RegExp(
+      `^\\s*${escapeRegExp(cur.headingText)}\\s*(?:[:\\-–—])?\\s*`,
+      "i",
+    );
+
+    let afterHeading = plainChunk.replace(headingRegex, "").trim();
+
+    // Remove common docs chrome prefixes without relying on newline boundaries.
+    const rawExcerpt = afterHeading
+      .replace(
+        /^(\s*(table of contents|on this page|contents|navigation|skip to content|related links|previous|next|copyright|terms of service|privacy policy)\s*:?\s*)+/i,
+        "",
+      )
       .replace(/\s+/g, " ")
       .trim();
 
