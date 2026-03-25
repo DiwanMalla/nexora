@@ -33,11 +33,13 @@ import {
 import { buildQueryPlan } from "@/lib/omni/planner";
 import {
   buildRepoEvidenceBlock,
+  formatDirectUrlPageExtractionReport,
   parseRepoEvidence,
+  parseDirectUrlEvidence,
   runRetrievalPlan,
 } from "@/lib/omni/retrieval";
 import { buildEnhancedSystemPrompt } from "@/lib/omni/prompt-builder";
-import type { QueryAnalysis, RepoParsedEvidence } from "@/lib/omni/types";
+import type { QueryAnalysis, RepoParsedEvidence, DirectUrlParsedEvidence } from "@/lib/omni/types";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
 
@@ -858,8 +860,17 @@ function isExtractionStyleRepoPrompt(query: string): boolean {
 }
 
 function isStrictPageSummaryPrompt(query: string): boolean {
-  return /\b(summarize|summary|read|analyze|inspect|review|what does this page say|extract key points)\b/i.test(
+  return /\b(summarize|summary|read|analyze|inspect|review|what does this page say|extract key points|headings|list the headings|main sections|visible sections|extract main sections|explicitly stated|only what is explicitly stated)\b/i.test(
     query,
+  );
+}
+
+function isDirectUrlExtractionStylePrompt(query: string): boolean {
+  return (
+    /\b(headings|list the headings|main sections|visible sections|extract main sections)\b/i.test(
+      query,
+    ) ||
+    /\b(only what is explicitly stated|explicitly stated)\b/i.test(query)
   );
 }
 
@@ -1092,6 +1103,7 @@ export async function POST(req: Request) {
     let searchResponse: TavilySearchResponse | null = null;
     let repoEvidenceBlock: string | undefined;
     let parsedRepoEvidence: RepoParsedEvidence | undefined;
+    let parsedDirectUrlEvidence: DirectUrlParsedEvidence | undefined;
     let webSearchUsed = false;
     let retrievalQuality: RetrievalQuality = "high";
     let retrievalQualityNote: string | undefined;
@@ -1145,6 +1157,14 @@ export async function POST(req: Request) {
           );
         }
 
+        if (queryPlan.retrievalStrategy === "direct_url_fetch") {
+          const parsed = parseDirectUrlEvidence(retrieval.log.evidence);
+          parsedDirectUrlEvidence = parsed;
+          console.log(
+            `        ✅ Parsed direct page headings: ${parsed.headings.length} | meaningful=${parsed.isMeaningful}`,
+          );
+        }
+
         if (!searchResponse) {
           throw new Error("No retrieval evidence or search results were returned");
         }
@@ -1188,11 +1208,17 @@ export async function POST(req: Request) {
         execute: ({ writer }) => {
           const textId = `omni-${Date.now()}`;
           writer.write({ type: "text-start", id: textId });
+          const directUrlMessage =
+            "I could access the page URL, but I couldn’t extract enough rendered body content to reliably summarize what’s explicitly stated on the page.\n\nWhat I tried: direct fetch, a rendered retry, and then I checked whether any meaningful page content was recoverable.\n\nIf you paste the relevant sections (or share a static/docs export), I can summarize/extract them accurately.";
+          const genericMessage =
+            "I couldn't retrieve enough external evidence for this repo/file analysis task.\n\nI attempted web retrieval, but no usable sources were returned. Please retry, or share specific files (for example `README.md`, `package.json`, `.env.example`, and key docs) so I can produce an accurate grounded output without guessing.";
           writer.write({
             type: "text-delta",
             id: textId,
             delta:
-              "I couldn't retrieve enough external evidence for this repo/file analysis task.\n\nI attempted web retrieval, but no usable sources were returned. Please retry, or share specific files (for example `README.md`, `package.json`, `.env.example`, and key docs) so I can produce an accurate grounded output without guessing.",
+              queryPlan.retrievalStrategy === "direct_url_fetch"
+                ? directUrlMessage
+                : genericMessage,
           });
           writer.write({ type: "text-end", id: textId });
         },
@@ -1237,6 +1263,59 @@ export async function POST(req: Request) {
       });
     }
 
+    // ── Deterministic direct URL extraction for strict prompts ─────────
+    if (
+      queryPlan.retrievalStrategy === "direct_url_fetch" &&
+      parsedDirectUrlEvidence &&
+      isDirectUrlExtractionStylePrompt(lastContent)
+    ) {
+      if (!parsedDirectUrlEvidence.isMeaningful) {
+        const limitation = `I could access the page URL, but I couldn’t recover enough page-explicit content to extract reliable headings/sections.\n\nWhat I tried:\n- direct fetch\n- rendered retry (JS-aware)\n\nIf you paste the relevant sections (or export the page as static text), I can extract headings and summarize only what’s explicitly stated.`;
+        const stream = createUIMessageStream({
+          execute: ({ writer }) => {
+            const textId = `omni-${Date.now()}`;
+            writer.write({ type: "text-start", id: textId });
+            writer.write({ type: "text-delta", id: textId, delta: limitation });
+            writer.write({ type: "text-end", id: textId });
+          },
+        });
+        return createUIMessageStreamResponse({
+          stream,
+          headers: {
+            "X-Omni-Model": modelId,
+            "X-Omni-Provider": providerName,
+            "X-Omni-Reason": encodeHeaderValue(reason),
+            "X-Omni-Request-Id": requestId,
+          },
+        });
+      }
+
+      const deterministic = formatDirectUrlPageExtractionReport(
+        parsedDirectUrlEvidence,
+      );
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta: deterministic,
+          });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
+        },
+      });
+    }
+
     const lightweightComparisonPath =
       queryPlan.taskType === "web_research" && isComparisonStyleQuery(lastContent);
     const fastSynthesisPath =
@@ -1261,8 +1340,8 @@ export async function POST(req: Request) {
     if (
       queryPlan.retrievalStrategy === "direct_url_fetch" &&
       isStrictPageSummaryPrompt(lastContent) &&
-      retrievalLog?.fallbackUsed &&
-      (retrievalLog.evidence.sources.length ?? 0) === 0
+      parsedDirectUrlEvidence &&
+      !parsedDirectUrlEvidence.isMeaningful
     ) {
       console.log(
         "  ⚠️ Direct URL page body not retrievable; returning fast deterministic limitation response.",
@@ -1275,7 +1354,7 @@ export async function POST(req: Request) {
             type: "text-delta",
             id: textId,
             delta:
-              "I could access the page URL, but not enough rendered body content to produce a trustworthy summary.\n\nWhat I tried:\n- direct page fetch\n- rendered-content retry\n- fallback web retrieval\n\nNext step:\n- share a static/docs export, or paste the key page sections you want summarized.",
+              "I could access the page URL, but I couldn’t recover enough rendered page content to produce a trustworthy page summary.\n\nWhat I tried:\n- direct fetch\n- rendered retry (JS-aware)\n\nNext step:\n- paste the relevant page sections (or export the page as static text) so I can summarize only what’s explicitly stated.",
           });
           writer.write({ type: "text-end", id: textId });
         },

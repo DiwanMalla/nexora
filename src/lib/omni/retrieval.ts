@@ -7,7 +7,9 @@ import type {
   RetrievalEvidence,
   RetrievalLog,
   RepoParsedEvidence,
+  DirectUrlParsedEvidence,
 } from "./types";
+import Firecrawl from "@mendable/firecrawl-js";
 
 function getDomain(url: string): string {
   try {
@@ -86,21 +88,87 @@ function stripHtmlToText(html: string): string {
     .trim();
 }
 
-function isShellLikeHtml(raw: string, visibleText: string): boolean {
+function countHeadingTags(html: string): number {
+  return (
+    (html.match(/<h1[\s>]/gi) ?? []).length +
+    (html.match(/<h2[\s>]/gi) ?? []).length +
+    (html.match(/<h3[\s>]/gi) ?? []).length
+  );
+}
+
+function isShellOnlyOrLowBody(raw: string, visibleText: string): boolean {
   const lower = raw.toLowerCase();
+
+  const hasHead = /<head[\s>]/i.test(raw);
+  const hasBody = /<body[\s>]/i.test(raw);
   const hasFrameworkShell =
     /__next|id="__next"|_next\/static|application\/json|hydration|webpack|reactroot/i.test(
       raw,
     ) || /next\.js|vercel/i.test(lower);
-  const hasBodyTag = /<body[\s>]/i.test(raw);
-  const lowVisibleContent = visibleText.length < 900;
-  return hasBodyTag && hasFrameworkShell && lowVisibleContent;
+
+  const visibleLen = visibleText.trim().length;
+  const hasFewHeadings = countHeadingTags(raw) < 3;
+  const lowVisibleText = visibleLen < 900;
+
+  // Next/SPA pages sometimes return only <head> + app shell without a meaningful body.
+  const headOnlyLikely =
+    hasHead && !hasBody && (hasFewHeadings || lowVisibleText);
+
+  // Or we have an app shell but almost no visible content.
+  const shellLikely = hasFrameworkShell && (hasFewHeadings || lowVisibleText);
+
+  // Truncated fragments often look like mostly scripts/styles.
+  const scriptOrStyleHeavy =
+    ((raw.match(/<script[\s\S]*?<\/script>/gi) ?? []).length +
+      (raw.match(/<style[\s\S]*?<\/style>/gi) ?? []).length) >=
+    4;
+
+  const fragmentLikely = scriptOrStyleHeavy && lowVisibleText && !/article|main/i.test(lower);
+
+  return headOnlyLikely || shellLikely || fragmentLikely;
 }
 
 async function fetchViaRenderedMirror(url: string): Promise<string> {
   const mirrorUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//i, "")}`;
-  const text = await tryFetchText(mirrorUrl);
-  return text;
+  return tryFetchText(mirrorUrl);
+}
+
+async function fetchViaRenderedFirecrawl(
+  url: string,
+): Promise<{ content: string; mode: "firecrawl" }> {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    throw new Error("FIRECRAWL_API_KEY not set");
+  }
+
+  const app = new Firecrawl({ apiKey });
+  const doc = await app.scrape(url, {
+    formats: ["markdown"],
+    onlyMainContent: true,
+    timeout: 30_000,
+    removeBase64Images: true,
+  });
+
+  if (typeof doc.markdown !== "string" || !doc.markdown.trim()) {
+    throw new Error("Firecrawl returned empty markdown");
+  }
+
+  return { content: doc.markdown, mode: "firecrawl" };
+}
+
+async function fetchViaRenderedFallback(
+  url: string,
+): Promise<{ content: string; mode: "firecrawl" | "mirror" }> {
+  // Prefer Firecrawl (better handling of JS-heavy docs) when configured.
+  try {
+    const res = await fetchViaRenderedFirecrawl(url);
+    return res;
+  } catch {
+    // Fall back to a cheaper mirror approach when Firecrawl isn't configured
+    // or fails for a specific page.
+  }
+
+  return { content: await fetchViaRenderedMirror(url), mode: "mirror" };
 }
 
 async function retrieveFromDirectUrls(
@@ -112,38 +180,56 @@ async function retrieveFromDirectUrls(
     try {
       const raw = await tryFetchText(url);
       const looksHtml = /<html[\s>]|<body[\s>]|<!doctype html/i.test(raw);
-      let text = raw;
+      let contentToStore = raw;
+      let storedVisibleLen = 0;
+
       if (looksHtml) {
         const visible = stripHtmlToText(raw);
-        if (isShellLikeHtml(raw, visible)) {
+        storedVisibleLen = visible.length;
+
+        if (isShellOnlyOrLowBody(raw, visible)) {
           attempts.push({
             strategy: "direct_url_fetch",
-            target: `${url}#raw-shell`,
+            target: `${url}#shell-detected`,
             success: false,
-            error: "Shell-only HTML detected; retrying with rendered mirror",
+            error: "Shell-only/low-body content detected; retrying with rendered retrieval",
           });
-          const rendered = await fetchViaRenderedMirror(url);
-          const renderedVisible = stripHtmlToText(rendered);
+
+          const rendered = await fetchViaRenderedFallback(url);
+          const renderedVisible = stripHtmlToText(rendered.content);
+          storedVisibleLen = renderedVisible.length;
+
           if (renderedVisible.length < 700) {
             throw new Error(
-              "Shell-only/low-content page even after rendered retry",
+              "Rendered fallback could not recover meaningful page body content",
             );
           }
-          text = renderedVisible;
+
+          contentToStore = rendered.content;
           attempts.push({
             strategy: "direct_url_fetch",
-            target: `${url}#rendered-mirror`,
+            target: `${url}#rendered-${rendered.mode}`,
             success: true,
           });
         } else {
-          text = visible;
+          // Keep HTML (minus scripts/styles) so strict extraction can parse headings reliably.
+          contentToStore = raw
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .trim();
         }
       }
+
+      // If we ended up with almost no usable content, treat as insufficient.
+      if (storedVisibleLen > 0 && storedVisibleLen < 120) {
+        throw new Error("Low-content page body (insufficient for summarization)");
+      }
+
       attempts.push({ strategy: "direct_url_fetch", target: url, success: true });
       evidence.sources.push({
         title: `Fetched URL: ${url}`,
         url,
-        content: text,
+        content: contentToStore,
         score: 0.9,
       });
       if (/package\.json/i.test(url)) evidence.extractedFields.push("package.json");
@@ -320,9 +406,9 @@ export async function runRetrievalPlan(
   } else if (queryPlan.retrievalStrategy === "direct_url_fetch") {
     if (urls.length) evidence = await retrieveFromDirectUrls(urls, attempts);
     if (!evidence.sources.length) {
-      fallbackUsed = true;
-      const webQuery = buildSearchQuery(queryPlan.searchQuery || userQuery);
-      searchResponse = await retrieveViaWebSearch(webQuery, attempts);
+      // Direct URL summarization must be grounded in the retrieved page.
+      // If we can't extract meaningful body content, return no searchResponse
+      // and let the caller produce a fast limitation response.
     } else {
       searchResponse = createSearchResponseFromEvidence(
         queryPlan.searchQuery || userQuery,
@@ -453,5 +539,142 @@ export function buildRepoEvidenceBlock(parsed: RepoParsedEvidence): string {
     "docs/Architecture.md summary:",
     parsed.architectureSummary || "- none",
     "--- END REPO EVIDENCE ---",
+  ].join("\n");
+}
+
+function extractMarkdownHeadings(markdown: string): {
+  headings: string[];
+  sections: Array<{ heading: string; excerpt: string }>;
+} {
+  const lines = markdown.split("\n");
+  const headings: string[] = [];
+  const sections: Array<{ heading: string; excerpt: string }> = [];
+
+  let currentHeading: string | null = null;
+  let currentBuf: string[] = [];
+
+  const flush = () => {
+    if (!currentHeading) return;
+    const joined = currentBuf.join("\n").trim().replace(/\n{3,}/g, "\n\n");
+    const compact = joined.replace(/\s+/g, " ").trim();
+    const excerpt = compact.slice(0, 420);
+    if (excerpt) {
+      sections.push({ heading: currentHeading, excerpt });
+    }
+    currentBuf = [];
+  };
+
+  for (const line of lines) {
+    const m = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+    if (m) {
+      flush();
+      currentHeading = m[2]!.trim();
+      headings.push(currentHeading);
+      continue;
+    }
+    if (currentHeading) currentBuf.push(line);
+  }
+  flush();
+
+  return { headings: [...new Set(headings)], sections: sections.slice(0, 8) };
+}
+
+function extractHtmlHeadings(html: string): {
+  headings: string[];
+  sections: Array<{ heading: string; excerpt: string }>;
+} {
+  const plain = stripHtmlToText(html);
+  const headingMatches = Array.from(
+    html.matchAll(/<(h1|h2|h3)[^>]*>([\s\S]*?)<\/\1>/gi),
+  ).slice(0, 15);
+
+  const headings = headingMatches
+    .map((m) => (m[2] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim())
+    .filter((h) => h.length >= 3);
+
+  const uniqueHeadings = [...new Set(headings)].slice(0, 12);
+
+  const sections: Array<{ heading: string; excerpt: string }> = [];
+  for (const h of uniqueHeadings) {
+    const idx = plain.toLowerCase().indexOf(h.toLowerCase());
+    if (idx === -1) continue;
+    const excerpt = plain.slice(idx, idx + 320).replace(/\s+/g, " ").trim();
+    if (!excerpt) continue;
+    sections.push({ heading: h, excerpt });
+    if (sections.length >= 8) break;
+  }
+
+  return { headings: uniqueHeadings, sections };
+}
+
+export function parseDirectUrlEvidence(evidence: RetrievalEvidence): DirectUrlParsedEvidence {
+  const source = evidence.sources[0];
+  const content = source?.content ?? "";
+  if (!content.trim()) {
+    return {
+      sourceUsed: "text",
+      headings: [],
+      sections: [],
+      isMeaningful: false,
+      visibleCharCount: 0,
+    };
+  }
+
+  const looksMarkdown = /^#{1,6}\s+/m.test(content) || /\n#{1,6}\s+/m.test(content);
+
+  if (looksMarkdown) {
+    const parsed = extractMarkdownHeadings(content);
+    const visibleCharCount = stripHtmlToText(content).length;
+    // For strict extraction, headings are the primary signal. Visible length is a secondary guard.
+    const isMeaningful =
+      parsed.headings.length >= 2 &&
+      (parsed.sections.length >= 2 || visibleCharCount > 120);
+    return {
+      sourceUsed: "markdown",
+      headings: parsed.headings,
+      sections: parsed.sections,
+      isMeaningful,
+      visibleCharCount,
+    };
+  }
+
+  const parsedHtml = extractHtmlHeadings(content);
+  const visibleCharCount = stripHtmlToText(content).length;
+  const isMeaningful =
+    parsedHtml.headings.length >= 2 &&
+    (parsedHtml.sections.length >= 2 || visibleCharCount > 180);
+  return {
+    sourceUsed: "html",
+    headings: parsedHtml.headings,
+    sections: parsedHtml.sections,
+    isMeaningful,
+    visibleCharCount,
+  };
+}
+
+export function formatDirectUrlPageExtractionReport(
+  parsed: DirectUrlParsedEvidence,
+): string {
+  const headings = parsed.headings.slice(0, 15);
+  const sections = parsed.sections.slice(0, 6);
+
+  const headingsBlock =
+    headings.length > 0 ? headings.map((h) => `- ${h}`).join("\n") : "- none";
+
+  const sectionsBlock =
+    sections.length > 0
+      ? sections
+          .map((s) => `### ${s.heading}\n${s.excerpt || "- none"}`)
+          .join("\n\n")
+      : "No section excerpts could be extracted deterministically from the retrieved content.";
+
+  return [
+    "## Direct page extraction (page-explicit)",
+    "",
+    "## Headings",
+    headingsBlock,
+    "",
+    "## Key sections (excerpts)",
+    sectionsBlock,
   ].join("\n");
 }

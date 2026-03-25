@@ -89,3 +89,14 @@ export interface RepoParsedEvidence {
   milestoneHeadings: string[];
   architectureSummary?: string;
 }
+
+export interface DirectUrlParsedEvidence {
+  sourceUsed: "html" | "markdown" | "text";
+  headings: string[];
+  sections: Array<{
+    heading: string;
+    excerpt: string;
+  }>;
+  isMeaningful: boolean;
+  visibleCharCount: number;
+}

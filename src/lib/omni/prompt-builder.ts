@@ -36,6 +36,12 @@ export function buildEnhancedSystemPrompt(params: {
     );
   }
 
+  if (retrievalStrategy === "direct_url_fetch") {
+    parts.push(
+      "Direct URL grounding rule: For summaries/extractions from a specific page, you must only use information present in the retrieved page content/context. If a requested section/detail cannot be verified from the retrieved content, explicitly say it is not present in the retrieved page content (do not fill gaps from prior knowledge).",
+    );
+  }
+
   if (searchResponse) {
     if (searchResponse.answer) {
       parts.push(`\nSearch Quick Answer: ${searchResponse.answer}`);
