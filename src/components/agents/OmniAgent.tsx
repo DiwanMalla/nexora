@@ -161,6 +161,7 @@ export function OmniAgent() {
         ? crypto.randomUUID()
         : `omni-${Date.now()}-${Math.random().toString(16).slice(2)}`),
   );
+  const activeConversationId = conversationIdFromUrl ?? conversationIdRef.current;
   const omniProviderRef = useRef(omniProvider);
   const requestStartMsRef = useRef<number | null>(null);
   const headersAtMsRef = useRef<number | null>(null);
@@ -584,7 +585,7 @@ export function OmniAgent() {
             className="flex-1 overflow-y-auto px-4 py-6 pb-32"
           >
             <ConversationTitleBar
-              conversationId={conversationIdFromUrl}
+              conversationId={activeConversationId}
               firstUserMessage={messages.find((m) => m.role === "user")?.content}
             />
             <ChatMessages

@@ -356,8 +356,14 @@ export async function POST(req: Request) {
   const lastUserText = plainTextFromChatContent(lastUserContent)
     .replace(/^\uFEFF/, "")
     .trim();
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  const assistantMessageCount = messages.filter(
+    (m) => m.role === "assistant",
+  ).length;
+  const isFirstConversationTurn =
+    userMessageCount === 1 && assistantMessageCount === 0;
   let initialConversationTitle = buildConversationTitleFromPrompt(lastUserText);
-  if (lastUserText && !requestedConversationId) {
+  if (lastUserText && isFirstConversationTurn) {
     const aiTitle = await maybeGenerateConversationTitle({
       model: languageModel,
       firstUserMessage: lastUserText,

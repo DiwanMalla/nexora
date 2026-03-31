@@ -28,35 +28,71 @@ export function ConversationTitleBar({
   const [draft, setDraft] = useState(fallbackTitle);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const titleFetchConversationId = conversationId ?? "";
+  const titleFetchFirstUserMessage = firstUserMessage ?? "";
 
   useEffect(() => {
+    // While a new conversation has no id yet, use local fallback title.
+    // Once id exists, fetched/persisted title should be the source of truth.
+    if (conversationId) return;
     setTitle(fallbackTitle);
     setDraft(fallbackTitle);
-  }, [fallbackTitle]);
+  }, [conversationId, fallbackTitle]);
 
   useEffect(() => {
     if (!conversationId) return;
+    // Avoid showing the raw prompt as title once persistence id exists.
+    setTitle((prev) =>
+      prev === fallbackTitle ? "Generating title..." : prev,
+    );
+    setDraft((prev) =>
+      prev === fallbackTitle ? "Generating title..." : prev,
+    );
+  }, [conversationId, fallbackTitle]);
+
+  useEffect(() => {
+    if (!titleFetchConversationId) return;
     let active = true;
-    void fetch(`/api/history/${encodeURIComponent(conversationId)}`, {
-      cache: "no-store",
-    })
-      .then(async (res) => {
-        const payload = (await res.json()) as {
-          conversation?: { title?: string };
-        };
-        if (!active || !res.ok) return;
-        const next = payload.conversation?.title?.trim();
-        if (!next) return;
-        setTitle(next);
-        setDraft(next);
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const maxAttempts = 8;
+
+    const loadTitle = () => {
+      void fetch(`/api/history/${encodeURIComponent(titleFetchConversationId)}`, {
+        cache: "no-store",
       })
-      .catch(() => {
-        // Keep fallback title if fetch fails.
-      });
+        .then(async (res) => {
+          const payload = (await res.json()) as {
+            conversation?: { title?: string };
+          };
+          if (!active) return;
+          if (!res.ok) {
+            if (attempt < maxAttempts) {
+              attempt += 1;
+              retryTimer = setTimeout(loadTitle, 500);
+            }
+            return;
+          }
+          const next = payload.conversation?.title?.trim();
+          if (!next) return;
+          setTitle(next);
+          setDraft(next);
+        })
+        .catch(() => {
+          if (!active) return;
+          if (attempt < maxAttempts) {
+            attempt += 1;
+            retryTimer = setTimeout(loadTitle, 500);
+          }
+        });
+    };
+
+    loadTitle();
     return () => {
       active = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [conversationId]);
+  }, [titleFetchConversationId, titleFetchFirstUserMessage]);
 
   const handleSave = async () => {
     if (!conversationId) return;

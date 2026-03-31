@@ -1219,14 +1219,10 @@ export async function POST(req: Request) {
     );
     const pipelineSteps: PipelineStep[] = [];
     const t0 = Date.now();
-
-    console.log("\n╔══════════════════════════════════════════╗");
-    console.log("║         OMNI AGENT PIPELINE START         ║");
-    console.log("╚══════════════════════════════════════════╝");
-    console.log(`  Request ID: ${requestId}`);
-    console.log(
-      `  Prompt: "${lastContent.slice(0, 100)}${lastContent.length > 100 ? "..." : ""}"`,
-    );
+    const userMessageCount = raw.filter((m) => m.role === "user").length;
+    const assistantMessageCount = raw.filter((m) => m.role === "assistant").length;
+    const isFirstConversationTurn =
+      userMessageCount === 1 && assistantMessageCount === 0;
 
     const preferredProvider = getOmniProvider(requestedProvider);
     const openRouterFactory = createModelFactory("openrouter");
@@ -1235,13 +1231,21 @@ export async function POST(req: Request) {
     const simpleModel = openRouterFactory(
       simpleModelId as Parameters<typeof groq>[0],
     );
-    if (!requestedConversationId && lastContent) {
+    if (isFirstConversationTurn && lastContent) {
       const aiTitle = await maybeGenerateConversationTitle({
         model: simpleModel,
         firstUserMessage: lastContent,
       });
       if (aiTitle) initialConversationTitle = aiTitle;
     }
+
+    console.log("\n╔══════════════════════════════════════════╗");
+    console.log("║         OMNI AGENT PIPELINE START         ║");
+    console.log("╚══════════════════════════════════════════╝");
+    console.log(`  Request ID: ${requestId}`);
+    console.log(
+      `  Prompt: "${lastContent.slice(0, 100)}${lastContent.length > 100 ? "..." : ""}"`,
+    );
 
     let persistenceConversationId: string | null = null;
     let persistenceClient:
