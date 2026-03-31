@@ -9,10 +9,14 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { Hexagon } from "lucide-react";
 import { cn, stripThinkBlocks } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
 import { MessageActions } from "./MessageActions";
+import { remarkOmniReportSections } from "@/lib/markdown/remark-omni-report-sections";
+import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
+import rehypeKatex from "rehype-katex";
 
 export interface RoutingMetadata {
   model: string;
@@ -63,15 +67,30 @@ function AssistantMessage({
   topContent,
   showTypingIndicator = false,
   hideActions = false,
+  reportMode = false,
+  qualityPanel = false,
+  renderMode = "markdown",
 }: {
   content: string;
   model?: string;
   topContent?: React.ReactNode;
   showTypingIndicator?: boolean;
   hideActions?: boolean;
+  reportMode?: boolean;
+  /** Subtle bordered panel for structured / long AI Chat replies (Omni-like readability). */
+  qualityPanel?: boolean;
+  renderMode?: "markdown" | "plain";
 }) {
   const visibleContent = stripThinkBlocks(content);
   const hasVisibleContent = Boolean(visibleContent.trim());
+
+  const containerBaseClass = reportMode
+    ? "typography-prose omni-report-panel ml-11 max-w-none"
+    : qualityPanel
+      ? "typography-prose ai-chat-answer-panel max-w-none pl-11"
+      : "typography-prose max-w-none pl-11";
+  const plainContainerClass = `${containerBaseClass} whitespace-pre-wrap`;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Avatar + name */}
@@ -89,17 +108,39 @@ function AssistantMessage({
       {topContent}
 
       {/* Markdown body (think blocks stripped) */}
-      {hasVisibleContent && (
-        <div className="typography-prose max-w-none pl-11">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {visibleContent}
-          </ReactMarkdown>
-        </div>
-      )}
+      {hasVisibleContent &&
+        (renderMode === "plain" ? (
+          <div className={plainContainerClass}>{visibleContent}</div>
+        ) : (
+          <div className={containerBaseClass}>
+            <ReactMarkdown
+              remarkPlugins={
+                reportMode
+                  ? [remarkGfm, remarkMath, remarkOmniReportSections()]
+                  : [remarkGfm, remarkMath]
+              }
+              rehypePlugins={[rehypeKatex]}
+              components={
+                reportMode
+                  ? ({
+                      omniSection: OmniSection,
+                    } as any)
+                  : undefined
+              }
+            >
+              {visibleContent}
+            </ReactMarkdown>
+          </div>
+        ))}
 
       {/* Actions + model badge */}
       {hasVisibleContent && !hideActions && (
-        <div className="flex items-center gap-4 pl-11">
+        <div
+          className={cn(
+            "flex items-center gap-4",
+            reportMode ? "ml-11 pl-0" : "pl-11",
+          )}
+        >
           <MessageActions content={visibleContent} />
           {model && (
             <div className="ml-auto flex items-center gap-2 rounded-full bg-surface-overlay/50 border border-border px-3 py-1 animate-in fade-in slide-in-from-right-2 duration-1000">
@@ -112,6 +153,34 @@ function AssistantMessage({
         </div>
       )}
     </div>
+  );
+}
+
+function OmniSection({
+  node,
+  children,
+}: {
+  // `node` is a custom AST node emitted by `remarkOmniReportSections`.
+  node: any;
+  children: React.ReactNode;
+}) {
+  const kind = node?.kind as
+    | "verified"
+    | "documented"
+    | "uncertain"
+    | "priorities";
+  const title = typeof node?.title === "string" ? node.title : "";
+
+  return (
+    <section
+      className={cn(
+        "omni-report-section",
+        kind ? `omni-report-section--${kind}` : undefined,
+      )}
+    >
+      {title ? <h2 className="omni-report-section-title">{title}</h2> : null}
+      <div className="omni-report-section-body">{children}</div>
+    </section>
   );
 }
 
@@ -245,7 +314,11 @@ function AssistantTypingMessage({
         content=""
         showTypingIndicator={false}
         topContent={
-          <TypingIndicator hint={hint} steps={steps} activeLabel={activeLabel} />
+          <TypingIndicator
+            hint={hint}
+            steps={steps}
+            activeLabel={activeLabel}
+          />
         }
       />
     </div>
@@ -263,6 +336,7 @@ export function ChatMessages({
   replyImageQuery = null,
   replyImageState = "idle",
   replyImageError = null,
+  agentId,
 }: ChatMessagesProps) {
   if (messages.length === 0) return null;
 
@@ -278,6 +352,17 @@ export function ChatMessages({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
       {messages.map((m, idx) => {
         const isLast = idx === messages.length - 1;
+        const renderMode: "markdown" | "plain" =
+          agentId === "omni" && m.role === "assistant" && isLast && isLoading
+            ? "plain"
+            : "markdown";
+        const reportMode =
+          agentId === "omni" &&
+          /(^|\n)##\s+(✅\s*Verified in retrieved artifacts|🛠️\s*Documented|⚠️\s*Uncertain|Top 3 beta-readiness priorities|##\s*Summary)/m.test(
+            m.content,
+          );
+        const qualityPanel =
+          !reportMode && useAiChatQualityPanel(agentId, m.content);
         return (
           <div
             key={m.id}
@@ -295,6 +380,9 @@ export function ChatMessages({
                 model={m.model}
                 showTypingIndicator={false}
                 hideActions={isLast && isLoading}
+                reportMode={reportMode}
+                qualityPanel={qualityPanel}
+                renderMode={renderMode}
                 topContent={
                   isLast ? (
                     <>
@@ -305,12 +393,12 @@ export function ChatMessages({
                           activeLabel={activeStepLabel}
                         />
                       ) : null}
-                    <AssistantReplyImages
-                      images={replyImages}
-                      query={replyImageQuery}
-                      status={replyImageState}
-                      error={replyImageError}
-                    />
+                      <AssistantReplyImages
+                        images={replyImages}
+                        query={replyImageQuery}
+                        status={replyImageState}
+                        error={replyImageError}
+                      />
                     </>
                   ) : undefined
                 }

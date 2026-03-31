@@ -273,6 +273,42 @@ const groq: AIProvider = {
   ],
 };
 
+// ─── OpenRouter (models routed via OpenRouter API) ─────────────────────────
+const openrouter: AIProvider = {
+  id: "openrouter",
+  name: "OpenRouter",
+  logo: "OR",
+  accent: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+  description: "Unified model access via OpenRouter (speed + quality mix).",
+  isDefault: false,
+  models: [
+    {
+      name: "GPT-4o mini",
+      apiId: "openai/gpt-4o-mini",
+      keyAdvantage: "Fast default for general chat and reasoning-only prompts.",
+      capability: ["speed", "reasoning"],
+    },
+    {
+      name: "Claude 3.7 Sonnet",
+      apiId: "anthropic/claude-3.7-sonnet",
+      keyAdvantage: "Grounded synthesis and polished writing.",
+      capability: ["reasoning", "writing"],
+    },
+    {
+      name: "o3-mini-high",
+      apiId: "openai/o3-mini-high",
+      keyAdvantage: "Higher-quality heavy reasoning when ambiguity/complexity matters.",
+      capability: ["reasoning"],
+    },
+    {
+      name: "DeepSeek Chat V3 (Backup)",
+      apiId: "deepseek/deepseek-chat-v3-0324",
+      keyAdvantage: "Backup reasoning model for degraded-mode and timeout fallback.",
+      capability: ["reasoning"],
+    },
+  ],
+};
+
 // ─── Single source of truth ────────────────────────────────────────────────
 export const AI_PROVIDERS: AIProvider[] = [
   openai,
@@ -286,6 +322,7 @@ export const AI_PROVIDERS: AIProvider[] = [
   zai,
   inception,
   xiaomi,
+  openrouter,
   groq,
 ];
 

@@ -44,11 +44,25 @@ export async function sendChatMessage(
 export async function sendMultiModelMessages(
   messages: { role: string; content: string }[],
   modelIds: string[],
+  options?: { webSearch?: boolean },
 ): Promise<{ modelId: string; text: string }[]> {
+  const webSearch = options?.webSearch !== false;
   return Promise.all(
     modelIds.map(async (modelId) => {
       try {
-        const data = await sendChatMessage({ model: modelId, messages });
+        const data = await sendChatMessage({
+          model: modelId,
+          messages,
+          webSearch,
+        });
+        if (data.meta) {
+          console.log(
+            `[Nexora chat] ${modelId} (${data.meta.displayName ?? data.meta.modelId ?? modelId})`,
+            data.meta,
+          );
+        } else {
+          console.log(`[Nexora chat] ${modelId}`, data.model ?? "(no meta)");
+        }
         return { modelId, text: data.text?.trim() || "No response." };
       } catch {
         return { modelId, text: "Something went wrong." };

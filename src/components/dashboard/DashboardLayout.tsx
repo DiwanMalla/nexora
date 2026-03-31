@@ -2,19 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import {
   PanelLeftClose,
   PanelLeft,
   Plus,
   Home,
-  Inbox,
-  LayoutGrid,
-  FolderOpen,
   Search,
   Bell,
-  Zap,
   ChevronRight,
   ArrowRight,
   Hexagon,
@@ -27,7 +23,6 @@ import {
   Code2,
   MessageSquare,
   Clock,
-  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountSettingsModal } from "@/components/dashboard/AccountSettingsModal";
@@ -38,10 +33,6 @@ import { AVAILABLE_MODELS, AVAILABLE_AGENTS } from "@/lib/constants";
 const mainNav = [
   { href: "/workspace", label: "Home", icon: Home },
   { href: "/agents?type=aichat", label: "AI Chat", icon: SparklesIcon },
-  { href: "/providers", label: "AI Providers", icon: Cpu },
-  { href: "/inbox", label: "AI Inbox", icon: Inbox },
-  { href: "/discover", label: "Discover", icon: LayoutGrid },
-  { href: "/drive", label: "AI Drive", icon: FolderOpen },
 ];
 
 import { FOCUS_RING } from "@/lib/styles";
@@ -54,6 +45,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [historyDropdownOpen, setHistoryDropdownOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<
+    Array<{
+      id: string;
+      title: string;
+      agent_type: string | null;
+      updated_at: string;
+      last_message_at: string | null;
+    }>
+  >([]);
 
   const displayName =
     user?.fullName?.trim() ||
@@ -81,6 +83,45 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   };
 
   const ActiveAgentIcon = getAgentIcon(selectedAgent);
+
+  useEffect(() => {
+    if (!historyDropdownOpen || !sidebarOpen) return;
+    let active = true;
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    void fetch("/api/history?limit=12", { cache: "no-store" })
+      .then(async (res) => {
+        const payload = (await res.json()) as {
+          items?: Array<{
+            id: string;
+            title: string;
+            agent_type: string | null;
+            updated_at: string;
+            last_message_at: string | null;
+          }>;
+          error?: string;
+          details?: string;
+        };
+        if (!active) return;
+        if (!res.ok) {
+          throw new Error(payload.details || payload.error || "Unable to load history.");
+        }
+        setHistoryItems(payload.items ?? []);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setHistoryError(err instanceof Error ? err.message : "Unable to load history.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setHistoryLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [historyDropdownOpen, sidebarOpen]);
 
   return (
     <div
@@ -239,42 +280,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* History Dropdown */}
-          <div className="relative mt-2 border-t border-border pt-2">
-            <button
-              onClick={() => setHistoryDropdownOpen(!historyDropdownOpen)}
-              className={cn(
-                "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 text-[var(--text-muted)] hover:bg-surface-overlay hover:text-text",
-                FOCUS_RING,
-                !sidebarOpen && "justify-center px-0"
-              )}
-            >
-              <Clock className="h-4 w-4 shrink-0 transition-colors group-hover:text-text" />
-              {sidebarOpen && (
-                <div className="flex flex-1 items-center justify-between">
-                  <span>History</span>
-                  <ChevronDown className={cn("h-3 w-3 transition-transform", historyDropdownOpen && "rotate-180")} />
-                </div>
-              )}
-            </button>
-            
-            {historyDropdownOpen && sidebarOpen && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="p-2 space-y-1">
-                  <div className="px-2 py-1.5 text-[10px] uppercase font-bold text-text-dim">Recent</div>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
-                    <span className="truncate">Next.js App Router patterns</span>
-                  </button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
-                    <span className="truncate">Fixing useEffect dependency</span>
-                  </button>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors">
-                    <span className="truncate">Workspace Agent Redesign</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Nav links */}
@@ -287,8 +292,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {mainNav.map(({ href, label, icon: Icon }) => {
             const isActive =
               pathname === href ||
-              (href.startsWith("/agents") && pathname.startsWith("/agents")) ||
-              (href === "/providers" && pathname.startsWith("/providers"));
+              (href.startsWith("/agents") && pathname.startsWith("/agents"));
             return (
               <Link
                 key={href}
@@ -317,26 +321,81 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-        </nav>
 
-        {/* System status card (sidebar open only) */}
-        {sidebarOpen && (
-          <div className="mx-3.5 mb-4 rounded-xl border border-border bg-surface-overlay p-4">
-            <div className="flex items-center gap-2 text-xs font-bold text-text uppercase tracking-wider">
-              <Zap className="h-3 w-3 text-text" />
-              Compute Nodes
-            </div>
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center justify-between text-[10px] font-bold text-text-dim uppercase tracking-widest">
-                <span>Usage</span>
-                <span>82%</span>
+          {/* History tab (below AI Chat) */}
+          <div className="relative">
+            <button
+              onClick={() => setHistoryDropdownOpen((v) => !v)}
+              className={cn(
+                "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-semibold transition-all duration-200",
+                historyDropdownOpen
+                  ? "bg-surface-overlay-strong text-text shadow-sm"
+                  : "text-text-muted hover:bg-surface-overlay hover:text-text",
+                FOCUS_RING,
+                !sidebarOpen && "justify-center px-0",
+              )}
+            >
+              <Clock
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-colors",
+                  historyDropdownOpen ? "text-text" : "group-hover:text-text",
+                )}
+              />
+              {sidebarOpen && (
+                <div className="flex flex-1 items-center justify-between">
+                  <span>History</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3 w-3 transition-transform",
+                      historyDropdownOpen && "rotate-180",
+                    )}
+                  />
+                </div>
+              )}
+            </button>
+
+            {historyDropdownOpen && sidebarOpen && (
+              <div className="mt-1 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="max-h-64 overflow-y-auto p-2 space-y-1">
+                  {historyLoading && (
+                    <div className="px-2 py-2 text-[11px] font-semibold text-text-muted">
+                      Loading history...
+                    </div>
+                  )}
+                  {historyError && !historyLoading && (
+                    <div className="px-2 py-2 text-[11px] font-semibold text-red-300">
+                      {historyError}
+                    </div>
+                  )}
+                  {!historyLoading && !historyError && historyItems.length === 0 && (
+                    <div className="px-2 py-2 text-[11px] font-semibold text-text-muted">
+                      No conversations yet.
+                    </div>
+                  )}
+                  {!historyLoading &&
+                    !historyError &&
+                    historyItems.map((item) => {
+                      const type = item.agent_type || "aichat";
+                      return (
+                        <Link
+                          key={item.id}
+                          href={`/agents?type=${encodeURIComponent(type)}&id=${encodeURIComponent(item.id)}`}
+                          onClick={() => setHistoryDropdownOpen(false)}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold text-text-muted hover:bg-surface-overlay hover:text-text transition-colors"
+                          title={item.title || "Untitled conversation"}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {item.title?.trim() || "Untitled conversation"}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                </div>
               </div>
-              <div className="h-1 w-full bg-surface-overlay-strong rounded-full overflow-hidden">
-                <div className="h-full w-[82%] bg-accent-success" />
-              </div>
-            </div>
+            )}
           </div>
-        )}
+        </nav>
 
         {/* User */}
         <div

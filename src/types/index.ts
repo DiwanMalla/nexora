@@ -16,12 +16,49 @@ export type ChatMessage = {
   model?: string;
 };
 
+/** Debug / UX metadata returned with chat completions (also logged server-side). */
+export type ChatResponseMeta = {
+  mode: "single" | "consensus";
+  provider?: string;
+  modelId?: string;
+  displayName?: string;
+  consensusModelIds?: string[];
+  synthesisModelId?: string;
+  webSearchEnabled?: boolean;
+  webSearchCalls?: number;
+  webSearchQueries?: string[];
+  stepCount?: number;
+  /** Server detected time-sensitive / current-fact question */
+  currentFactIntent?: boolean;
+  currentFactReason?: string;
+  /** Tavily preflight ran before the LLM (search-first path) */
+  preflightTavily?: boolean;
+  preflightSubstantive?: boolean;
+  preflightError?: string;
+  /** True when current-fact path replaced the model text (no webSearch executed). */
+  currentFactGuardTriggered?: boolean;
+  /** Model/tool loop threw; response text is a safe fallback (HTTP may still be 200). */
+  chatGenerationDegraded?: boolean;
+  /** Server-classified task shape for adaptive response guidance (AI Chat single-model). */
+  responseStyleIntent?:
+    | "current_fact"
+    | "leader_since_office"
+    | "live_news"
+    | "repo_inspection"
+    | "teaching"
+    | "writing"
+    | "coding"
+    | "comparison"
+    | "general_chat";
+};
+
 /** Shape of a successful response from the `/api/chat` endpoint. */
 export type ChatAPIResponse = {
   text?: string;
   model?: string;
   error?: string;
   details?: string;
+  meta?: ChatResponseMeta;
 };
 
 /** Body payload sent to the `/api/chat` endpoint. */
@@ -29,6 +66,12 @@ export type ChatAPIRequest = {
   model: string;
   messages: { role: string; content: string }[];
   enabledModels?: string[];
+  /** When true (default), single-model chat runs a Tavily-backed webSearch tool loop. */
+  webSearch?: boolean;
+  /** Stable client-generated thread id (UUID in URL). */
+  conversationId?: string;
+  /** Agent context in single-model chat (aichat/researcher/coder/analyst). */
+  agentType?: string;
 };
 
 // ─── AI Models & Agents ─────────────────────────────────────────────────────

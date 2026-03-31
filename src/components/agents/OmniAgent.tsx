@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -13,6 +14,7 @@ import {
   type ReplyImage,
   type ReplyImageState,
 } from "@/components/chat/ChatMessages";
+import { ConversationTitleBar } from "@/components/chat/ConversationTitleBar";
 import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import type { ChatMessage } from "@/types";
@@ -143,7 +145,9 @@ function uiMessagesToChatMessages(
 
 export function OmniAgent() {
   const { selectedAgent, setSelectedAgent, omniProvider } = useWorkspace();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const conversationIdFromUrl = searchParams.get("id");
   const [input, setInput] = useState("");
   const [replyImages, setReplyImages] = useState<ReplyImage[]>([]);
   const [imageSearchState, setImageSearchState] =
@@ -151,6 +155,12 @@ export function OmniAgent() {
   const [imageSearchError, setImageSearchError] = useState<string | null>(null);
   const [latestQuery, setLatestQuery] = useState<string | null>(null);
   const imageRequestRef = useRef(0);
+  const conversationIdRef = useRef<string>(
+    searchParams.get("id") ??
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `omni-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+  );
   const omniProviderRef = useRef(omniProvider);
   const requestStartMsRef = useRef<number | null>(null);
   const headersAtMsRef = useRef<number | null>(null);
@@ -158,6 +168,15 @@ export function OmniAgent() {
   const pendingQueryRef = useRef<string>("");
   const currentStrategyRef = useRef<StrategyProfileKey>("none");
   const lastSubmissionRef = useRef<{ text: string; at: number } | null>(null);
+  const clientStreamStatsRef = useRef<{
+    updateCount: number;
+    charsDeltaSum: number;
+    intervalSumMs: number;
+    intervalCount: number;
+    maxIntervalMs: number;
+    lastAtMs: number | null;
+    lastAssistantLen: number;
+  } | null>(null);
   const [pipelineProgressSteps, setPipelineProgressSteps] = useState<
     Array<{ label: string; done: boolean }>
   >([]);
@@ -227,6 +246,15 @@ export function OmniAgent() {
             requestStartMsRef.current = Date.now();
             headersAtMsRef.current = null;
             firstVisibleTokenMsRef.current = null;
+            clientStreamStatsRef.current = {
+              updateCount: 0,
+              charsDeltaSum: 0,
+              intervalSumMs: 0,
+              intervalCount: 0,
+              maxIntervalMs: 0,
+              lastAtMs: null,
+              lastAssistantLen: 0,
+            };
             console.log("[OmniTiming] request sent");
           }
           const nextHeaders = new Headers(init?.headers);
@@ -236,6 +264,7 @@ export function OmniAgent() {
               ? crypto.randomUUID()
               : `omni-${Date.now()}-${Math.random().toString(16).slice(2)}`;
           nextHeaders.set("x-omni-request-id", requestId);
+          nextHeaders.set("x-conversation-id", conversationIdRef.current);
           const optimisticStrategy = detectStrategyFromQuery(
             pendingQueryRef.current,
           );
@@ -262,20 +291,27 @@ export function OmniAgent() {
                 );
               } else if (parsed.retrievalQuality === "none") {
                 setRetrievalQualityNotice(
-                  parsed.retrievalQualityNote ?? "No usable external content detected.",
+                  parsed.retrievalQualityNote ??
+                    "No usable external content detected.",
                 );
               }
               const profileSteps = getProfileSteps(strategy);
               const retrieved = parsed.steps ?? [];
-              const doneStepCount = PIPELINE_STEP_ORDER.reduce((count, name) => {
-                const match = retrieved.find((step) => step.name === name);
-                return match && match.status === "done" ? count + 1 : count;
-              }, 0);
+              const doneStepCount = PIPELINE_STEP_ORDER.reduce(
+                (count, name) => {
+                  const match = retrieved.find((step) => step.name === name);
+                  return match && match.status === "done" ? count + 1 : count;
+                },
+                0,
+              );
               const doneSteps = profileSteps
                 .slice(0, Math.min(doneStepCount, profileSteps.length))
                 .map((label) => ({ label, done: true }));
               setPipelineProgressSteps(doneSteps);
-              const activeIndex = Math.min(doneStepCount, profileSteps.length - 1);
+              const activeIndex = Math.min(
+                doneStepCount,
+                profileSteps.length - 1,
+              );
               setActiveStepLabel(profileSteps[activeIndex]);
             } catch {
               // Keep optimistic progress if header parsing fails.
@@ -293,7 +329,53 @@ export function OmniAgent() {
     [],
   );
 
-  const { messages: uiMessages, sendMessage, status } = useChat({ transport });
+  const {
+    messages: uiMessages,
+    sendMessage,
+    status,
+    setMessages: setUiMessages,
+  } = useChat({ transport });
+
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    if (!idFromUrl) return;
+    if (conversationIdRef.current !== idFromUrl) {
+      conversationIdRef.current = idFromUrl;
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    if (!idFromUrl) return;
+    let active = true;
+    void fetch(`/api/history/${encodeURIComponent(idFromUrl)}`, {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const payload = (await res.json()) as {
+          messages?: Array<{
+            id: string;
+            role: "user" | "assistant" | "system" | "tool";
+            content: string;
+          }>;
+        };
+        if (!active || !res.ok) return;
+        const hydrated = (payload.messages ?? [])
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({
+            id: m.id,
+            role: m.role,
+            parts: [{ type: "text", text: m.content }],
+          }));
+        setUiMessages(hydrated as Parameters<typeof setUiMessages>[0]);
+      })
+      .catch(() => {
+        // keep current ui state if history fetch fails
+      });
+    return () => {
+      active = false;
+    };
+  }, [searchParams, setUiMessages]);
 
   const messages = useMemo(
     () => uiMessagesToChatMessages(uiMessages),
@@ -354,15 +436,49 @@ export function OmniAgent() {
         `[OmniTiming] first visible token in ${firstVisibleTokenMsRef.current - requestStartMsRef.current}ms`,
       );
     }
+
+    // Client-side chunk diagnostics: count how often the assistant text
+    // grows (as a proxy for "UI chunk updates" and re-render cadence).
+    if (status === "streaming" && last?.role === "assistant") {
+      const stats = clientStreamStatsRef.current;
+      if (stats) {
+        const len = last.content.length;
+        if (len > stats.lastAssistantLen) {
+          const now = Date.now();
+          const delta = len - stats.lastAssistantLen;
+          stats.updateCount += 1;
+          stats.charsDeltaSum += delta;
+          if (stats.lastAtMs != null) {
+            const interval = now - stats.lastAtMs;
+            stats.intervalSumMs += interval;
+            stats.intervalCount += 1;
+            stats.maxIntervalMs = Math.max(stats.maxIntervalMs, interval);
+          }
+          stats.lastAtMs = now;
+          stats.lastAssistantLen = len;
+        }
+      }
+    }
   }, [messages, status]);
 
   useEffect(() => {
-    if (
-      status === "ready" &&
-      requestStartMsRef.current != null
-    ) {
+    if (status === "ready" && requestStartMsRef.current != null) {
       const doneMs = Date.now() - requestStartMsRef.current;
       console.log(`[OmniTiming] response complete in ${doneMs}ms`);
+      const stats = clientStreamStatsRef.current;
+      if (stats) {
+        console.log(
+          `[OmniStreamClient] updates=${stats.updateCount} avgChunkChars=${
+            stats.updateCount
+              ? (stats.charsDeltaSum / stats.updateCount).toFixed(1)
+              : "0"
+          } avgIntervalMs=${
+            stats.intervalCount
+              ? Math.round(stats.intervalSumMs / stats.intervalCount)
+              : "0"
+          } maxIntervalMs=${stats.maxIntervalMs}`,
+        );
+      }
       requestStartMsRef.current = null;
     }
   }, [status]);
@@ -425,11 +541,7 @@ export function OmniAgent() {
       if (!text || isLoading) return;
       const now = Date.now();
       const recent = lastSubmissionRef.current;
-      if (
-        recent &&
-        recent.text === text &&
-        now - recent.at < 1500
-      ) {
+      if (recent && recent.text === text && now - recent.at < 1500) {
         console.log("[Omni] duplicate submission suppressed");
         return;
       }
@@ -452,9 +564,15 @@ export function OmniAgent() {
       }
 
       setInput("");
+      if (!searchParams.get("id")) {
+        router.replace(
+          `/agents?type=omni&id=${encodeURIComponent(conversationIdRef.current)}`,
+          { scroll: false },
+        );
+      }
       await sendMessage({ text });
     },
-    [input, isLoading, sendMessage, startImageSearch],
+    [input, isLoading, sendMessage, startImageSearch, router, searchParams],
   );
 
   return (
@@ -465,6 +583,10 @@ export function OmniAgent() {
             ref={chatScrollRef}
             className="flex-1 overflow-y-auto px-4 py-6 pb-32"
           >
+            <ConversationTitleBar
+              conversationId={conversationIdFromUrl}
+              firstUserMessage={messages.find((m) => m.role === "user")?.content}
+            />
             <ChatMessages
               messages={messages}
               isLoading={isLoading}

@@ -108,6 +108,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Premium AI composer — frosted glass (workspace mock tokens) */
+.glass-composer {
+  background: rgba(0, 34, 90, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(145, 170, 235, 0.15);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(210, 187, 255, 0.1);
+}
+
 /* Focus ring for accessibility */
 :focus-visible {
   outline: none;
@@ -268,6 +279,149 @@ body {
   padding-left: 1em;
   border-left: 3px solid var(--prose-blockquote-border);
   color: var(--text-muted);
+}
+
+/* Document-style tables */
+.typography-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: var(--text-sm);
+}
+.typography-prose thead th {
+  background: var(--surface-overlay-strong);
+  border: 1px solid var(--border);
+  padding: 0.6em 0.75em;
+  font-weight: 700;
+  text-align: left;
+}
+.typography-prose tbody td {
+  border: 1px solid var(--border);
+  padding: 0.6em 0.75em;
+  vertical-align: top;
+}
+
+.typography-prose hr {
+  border: 0;
+  border-top: 1px solid var(--border-hover);
+  margin: 1.25em 0;
+}
+
+/* ─── AI Chat polished answers (Omni-like scanability, lighter chrome) ─ */
+.ai-chat-answer-panel {
+  position: relative;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 1rem;
+  padding: 1rem 1.15rem 1rem;
+}
+
+.ai-chat-answer-panel h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  margin-top: 1em;
+  margin-bottom: 0.45em;
+}
+.ai-chat-answer-panel h2:first-child {
+  margin-top: 0;
+}
+.ai-chat-answer-panel h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-top: 0.85em;
+  margin-bottom: 0.35em;
+}
+.ai-chat-answer-panel :not(pre) > code {
+  border-radius: 0.35rem;
+  padding: 0.12em 0.4em;
+  background: var(--prose-code-bg);
+}
+
+/* ─── Omni report mode ─────────────────────────────────────────────── */
+.omni-report-panel {
+  position: relative;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.25rem 1.1rem;
+}
+
+/* Stronger hierarchy inside report panels */
+.omni-report-panel h1 {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  margin-bottom: 0.75em;
+}
+.omni-report-panel h2 {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+.omni-report-panel h3 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+/* Evidence/source chips */
+.omni-report-panel :not(pre) > code {
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
+  border: 1px solid var(--border);
+  background: var(--surface-overlay);
+}
+
+.omni-report-section {
+  margin: 1.1em 0;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border);
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+.omni-report-section-title {
+  margin: 0 0 0.65em 0;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+}
+.omni-report-section-body {
+  color: var(--text);
+}
+
+.omni-report-section--verified {
+  border-left: 4px solid rgba(16, 163, 127, 0.75);
+  background: rgba(16, 163, 127, 0.06);
+}
+.omni-report-section--documented {
+  border-left: 4px solid rgba(124, 58, 237, 0.75);
+  background: rgba(124, 58, 237, 0.06);
+}
+.omni-report-section--uncertain {
+  border-left: 4px solid rgba(245, 158, 11, 0.7);
+  background: rgba(245, 158, 11, 0.06);
+}
+.omni-report-section--priorities {
+  border-left: 4px solid rgba(6, 182, 212, 0.7);
+  background: rgba(6, 182, 212, 0.05);
+}
+
+/* Priority cards: spacing + subtle borders */
+.omni-report-section--priorities ol {
+  padding-left: 1.35em;
+  margin: 0.2em 0 0;
+}
+.omni-report-section--priorities li {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65em 0.8em;
+  margin: 0.55em 0;
+}
+
+/* Bullet markers should be visually structured */
+.omni-report-panel ul li::marker {
+  color: rgba(124, 58, 237, 0.95);
+}
+.omni-report-panel ol li::marker {
+  color: rgba(6, 182, 212, 0.95);
 }
 
 /* Semantic text utilities */

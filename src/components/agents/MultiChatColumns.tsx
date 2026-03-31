@@ -14,6 +14,8 @@ import { useState, useCallback } from "react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import {
   MessageSquare,
   ChevronDown,
@@ -24,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { AVAILABLE_MODELS } from "@/lib/constants";
 import { sendMultiModelMessages } from "@/lib/api";
 import { CommandBar } from "@/components/chat/CommandBar";
+import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
+import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
 import { MessageActions } from "@/components/chat/MessageActions";
 import type { AIModel, ChatMessage, MultiChatRound } from "@/types";
 
@@ -60,7 +64,9 @@ interface MultiChatColumnsProps {
   input: string;
   messages: ChatMessage[];
   handleInputChange: (
-    e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>,
+    e:
+      | React.ChangeEvent<HTMLTextAreaElement>
+      | React.ChangeEvent<HTMLInputElement>,
   ) => void;
   handleSubmit: (e: React.FormEvent) => Promise<void>;
 }
@@ -73,6 +79,7 @@ export function MultiChatColumns({
   handleInputChange,
   handleSubmit: parentSubmit,
 }: MultiChatColumnsProps) {
+  const { chatWebSearchEnabled, selectedAgent } = useWorkspace();
   const [multiRounds, setMultiRounds] = useState<MultiChatRound[]>([]);
   const [columnEnabled, setColumnEnabled] = useState<Record<string, boolean>>(
     () => Object.fromEntries(AVAILABLE_MODELS.map((m) => [m.id, true])),
@@ -112,6 +119,7 @@ export function MultiChatColumns({
     const results = await sendMultiModelMessages(
       apiMessages,
       AVAILABLE_MODELS.map((m) => m.id),
+      { webSearch: chatWebSearchEnabled },
     );
 
     setMultiRounds((prev) => {
@@ -200,6 +208,7 @@ export function MultiChatColumns({
                               key={roundIdx}
                               userMessage={round.user}
                               response={resp}
+                              selectedAgent={selectedAgent}
                             />
                           );
                         })}
@@ -341,10 +350,16 @@ function ColumnHeader({
 function RoundView({
   userMessage,
   response,
+  selectedAgent,
 }: {
   userMessage: string;
   response?: { content: string; loading?: boolean };
+  selectedAgent: string;
 }) {
+  const content = response?.content ?? "—";
+  const qualityPanel =
+    !response?.loading && useAiChatQualityPanel(selectedAgent, content);
+
   return (
     <div className="flex flex-col gap-3">
       {/* User message */}
@@ -356,7 +371,14 @@ function RoundView({
 
       {/* Model response */}
       <div className="flex flex-col gap-1">
-        <div className="rounded-2xl bg-surface-overlay-strong px-4 py-3 text-sm text-text-muted">
+        <div
+          className={cn(
+            "rounded-2xl px-4 py-3 text-sm",
+            qualityPanel
+              ? "typography-prose ai-chat-answer-panel text-text"
+              : "bg-surface-overlay-strong text-text-muted",
+          )}
+        >
           {response?.loading ? (
             <div className="flex items-center gap-1.5 py-2">
               <span className="h-2 w-2 animate-bounce rounded-full bg-violet-400 [animation-delay:-0.3s]" />
@@ -364,8 +386,11 @@ function RoundView({
               <span className="h-2 w-2 animate-bounce rounded-full bg-violet-400" />
             </div>
           ) : (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {response?.content ?? "—"}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {content}
             </ReactMarkdown>
           )}
         </div>

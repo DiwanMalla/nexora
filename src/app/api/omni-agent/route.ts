@@ -20,12 +20,16 @@ import {
   streamText,
   generateText,
 } from "ai";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { createGroq } from "@ai-sdk/groq";
 import { OMNI_MODELS } from "@/lib/omni-router";
 import { getNexoraSystemPrompt } from "@/lib/nexora-system-prompt";
 import { getOpenRouter } from "@/lib/ai/providers";
-import { OPENROUTER_OMNI_MODEL_MAP } from "@/lib/ai/openrouter-models";
+import {
+  OPENROUTER_OMNI_MODEL_MAP,
+  OPENROUTER_BACKUP_REASONING_MODEL_ID,
+} from "@/lib/ai/openrouter-models";
 import {
   type TavilySearchResponse,
   type TavilyResult,
@@ -39,6 +43,15 @@ import {
   runRetrievalPlan,
 } from "@/lib/omni/retrieval";
 import { buildEnhancedSystemPrompt } from "@/lib/omni/prompt-builder";
+import {
+  detectStrictPoliticalNewsQuery,
+  formatPoliticalNewsEvidenceBlock,
+  politicalSourceTierFromUrl,
+} from "@/lib/omni/political-news-grounding";
+import { buildConversationTitleFromPrompt } from "@/lib/chat/conversation-title";
+import { maybeGenerateConversationTitle } from "@/lib/chat/title-generator";
+import { createClerkSupabaseClient } from "@/lib/supabase/clerk";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { QueryAnalysis, RepoParsedEvidence, DirectUrlParsedEvidence } from "@/lib/omni/types";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
@@ -73,6 +86,159 @@ interface FactCheckSummary {
   verified: boolean;
   notes: string;
   claimChecks: ClaimVerification[];
+}
+
+function isSupabaseAuthConfigError(message: string): boolean {
+  return /No suitable key|wrong key type|JWT|invalid signature|auth/i.test(message);
+}
+
+async function ensureProfileExists(userId: string): Promise<boolean> {
+  try {
+    const serviceClient = createServiceRoleClient();
+    const { error } = await serviceClient.from("profiles").upsert(
+      { id: userId },
+      { onConflict: "id", ignoreDuplicates: false },
+    );
+    if (error) {
+      console.warn(
+        "[Nexora /api/omni-agent] profile bootstrap failed",
+        error.message,
+      );
+      return false;
+    }
+    return true;
+  } catch (error: unknown) {
+    console.warn(
+      "[Nexora /api/omni-agent] profile bootstrap failed",
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
+async function getOrCreateConversation(params: {
+  userId: string;
+  conversationId?: string;
+  modelId: string;
+  agentType?: string;
+  initialTitle: string;
+}) {
+  const { userId, conversationId, modelId, agentType, initialTitle } = params;
+  const clerkClient = await createClerkSupabaseClient();
+  const serviceClient = createServiceRoleClient();
+
+  const findExisting = async (
+    id: string,
+    client:
+      | Awaited<ReturnType<typeof createClerkSupabaseClient>>
+      | ReturnType<typeof createServiceRoleClient>,
+  ) =>
+    client
+      .from("conversations")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+  const insertConversation = async (
+    client:
+      | Awaited<ReturnType<typeof createClerkSupabaseClient>>
+      | ReturnType<typeof createServiceRoleClient>,
+  ) =>
+    client
+      .from("conversations")
+      .insert({
+        id: conversationId,
+        // targetConversationId is validated by call path below (conversationId branch)
+        user_id: userId,
+        title: initialTitle,
+        model: modelId,
+        agent_type: agentType ?? null,
+      })
+      .select("id")
+      .single();
+
+  const insertConversationNoId = async (
+    client:
+      | Awaited<ReturnType<typeof createClerkSupabaseClient>>
+      | ReturnType<typeof createServiceRoleClient>,
+  ) =>
+    client
+      .from("conversations")
+      .insert({
+        user_id: userId,
+        title: initialTitle,
+        model: modelId,
+        agent_type: agentType ?? null,
+      })
+      .select("id")
+      .single();
+
+  if (conversationId) {
+    const existing = await findExisting(conversationId, clerkClient);
+    if (existing.error && isSupabaseAuthConfigError(existing.error.message)) {
+      console.warn(
+        "[Nexora /api/omni-agent] clerk conversation lookup failed, falling back to service role:",
+        existing.error.message,
+      );
+      const fallbackExisting = await findExisting(conversationId, serviceClient);
+      if (fallbackExisting.data?.id) {
+        return {
+          supabase: serviceClient,
+          conversationId: fallbackExisting.data.id,
+          mode: "service",
+          created: false,
+        };
+      }
+      const fallbackCreate = await insertConversation(serviceClient);
+      return {
+        supabase: serviceClient,
+        conversationId: fallbackCreate.data?.id ?? null,
+        mode: "service",
+        created: true,
+        error: fallbackCreate.error?.message,
+      };
+    }
+    if (existing.data?.id) {
+      return {
+        supabase: clerkClient,
+        conversationId: existing.data.id,
+        mode: "clerk",
+        created: false,
+      };
+    }
+    const created = await insertConversation(clerkClient);
+    return {
+      supabase: clerkClient,
+      conversationId: created.data?.id ?? null,
+      mode: "clerk",
+      created: true,
+      error: created.error?.message,
+    };
+  }
+
+  const created = await insertConversationNoId(clerkClient);
+  if (created.error && isSupabaseAuthConfigError(created.error.message)) {
+    console.warn(
+      "[Nexora /api/omni-agent] clerk conversation create failed, falling back to service role:",
+      created.error.message,
+    );
+    const fallbackCreated = await insertConversationNoId(serviceClient);
+    return {
+      supabase: serviceClient,
+      conversationId: fallbackCreated.data?.id ?? null,
+      mode: "service",
+      created: true,
+      error: fallbackCreated.error?.message,
+    };
+  }
+  return {
+    supabase: clerkClient,
+    conversationId: created.data?.id ?? null,
+    mode: "clerk",
+    created: true,
+    error: created.error?.message,
+  };
 }
 
 type RetrievalQuality = "high" | "limited" | "none";
@@ -432,27 +598,10 @@ function buildRouteCandidates(
   preferredProvider: OmniProviderName,
   routeKey: RouteModelKey,
 ): RouteCandidate[] {
-  const openRouterPrimary: Record<RouteModelKey, string[]> = {
-    coding: [
-      getModelIdForProvider("openrouter", "coding"),
-      getModelIdForProvider("openrouter", "heavyReasoning"),
-      getModelIdForProvider("openrouter", "simple"),
-    ],
-    heavyReasoning: [
-      getModelIdForProvider("openrouter", "heavyReasoning"),
-      getModelIdForProvider("openrouter", "complexWriting"),
-      getModelIdForProvider("openrouter", "simple"),
-    ],
-    complexWriting: [
-      getModelIdForProvider("openrouter", "complexWriting"),
-      getModelIdForProvider("openrouter", "heavyReasoning"),
-      getModelIdForProvider("openrouter", "simple"),
-    ],
-    simple: [
-      getModelIdForProvider("openrouter", "simple"),
-      getModelIdForProvider("openrouter", "complexWriting"),
-    ],
-  };
+  const primaryModelId = getModelIdForProvider("openrouter", routeKey);
+  const openRouterBackupModelId =
+    process.env.OPENROUTER_OMNI_MODEL_BACKUP_REASONING?.trim() ||
+    OPENROUTER_BACKUP_REASONING_MODEL_ID;
 
   const groqBaseline: RouteCandidate[] = [
     {
@@ -467,14 +616,21 @@ function buildRouteCandidates(
     },
   ];
 
-  const openRouterCandidates = [...new Set(openRouterPrimary[routeKey])].map(
-    (modelId) =>
-      ({
-        provider: "openrouter" as const,
-        modelId,
-        routeKey,
-      }) satisfies RouteCandidate,
+  const orderedModelIds = [primaryModelId, openRouterBackupModelId].filter(
+    (id): id is string => Boolean(id && id.trim()),
   );
+  const seen = new Set<string>();
+  const uniqueInOrder = orderedModelIds.filter((id) => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  const openRouterCandidates = uniqueInOrder.map((modelId) => ({
+    provider: "openrouter" as const,
+    modelId,
+    routeKey,
+  })) satisfies RouteCandidate[];
 
   // Keep provider routing isolated during stability testing.
   // Groq remains the default test path; OpenRouter is opt-in via header/toggle.
@@ -668,6 +824,7 @@ function shouldUseLightweightWebSynthesis(results: TavilyResult[]): boolean {
 function capSourcesForSynthesis(
   response: TavilySearchResponse,
   maxSources: number,
+  options?: { politicalTierFirst?: boolean },
 ): TavilySearchResponse {
   if (response.results.length <= maxSources) return response;
 
@@ -708,6 +865,11 @@ function capSourcesForSynthesis(
   };
 
   const sorted = [...response.results].sort((a, b) => {
+    if (options?.politicalTierFirst) {
+      const tierA = politicalSourceTierFromUrl(a.url);
+      const tierB = politicalSourceTierFromUrl(b.url);
+      if (tierA !== tierB) return tierA - tierB;
+    }
     const officialDelta = Number(isOfficial(b.url)) - Number(isOfficial(a.url));
     if (officialDelta !== 0) return officialDelta;
     const trustB = scoreDomainCredibility(getDomain(b.url));
@@ -758,7 +920,10 @@ function scoreDomainCredibility(domain: string): number {
     /wikipedia\.org$/,
     /reuters\.com$/,
     /apnews\.com$/,
-    /bbc\.com$/,
+    /bbc\.(com|co\.uk)$/,
+    /aljazeera\.com$/,
+    /kathmandupost\.com$/,
+    /thehimalayantimes\.com$/,
     /who\.int$/,
     /un\.org$/,
     /openrouter\.ai$/,
@@ -1039,6 +1204,19 @@ export async function POST(req: Request) {
     const raw = Array.isArray(body.messages) ? body.messages : [];
     const messages = toModelMessages(raw);
     const lastContent = getLastUserContent(raw);
+    const authState = await auth();
+    const userId = authState.userId;
+    if (!userId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.log(`[Nexora /api/omni-agent] auth userId=${userId}`);
+    const requestedConversationId = req.headers
+      .get("x-conversation-id")
+      ?.trim();
+    const initialConversationTitle = buildConversationTitleFromPrompt(lastContent);
+    console.log(
+      `[Nexora /api/omni-agent] requestedConversationId=${requestedConversationId ?? "none"}`,
+    );
     const pipelineSteps: PipelineStep[] = [];
     const t0 = Date.now();
 
@@ -1057,6 +1235,48 @@ export async function POST(req: Request) {
     const simpleModel = openRouterFactory(
       simpleModelId as Parameters<typeof groq>[0],
     );
+
+    let persistenceConversationId: string | null = null;
+    let persistenceClient:
+      | Awaited<ReturnType<typeof createClerkSupabaseClient>>
+      | ReturnType<typeof createServiceRoleClient>
+      | null = null;
+    let conversationWasCreated = false;
+    try {
+      const profileReady = await ensureProfileExists(userId);
+      console.log(
+        `[Nexora /api/omni-agent] profile bootstrap=${profileReady ? "ok" : "failed"} profileId=${userId}`,
+      );
+      const conversationInit = await getOrCreateConversation({
+        userId,
+        conversationId: requestedConversationId || undefined,
+        modelId: simpleModelId,
+        agentType: "omni",
+        initialTitle: initialConversationTitle,
+      });
+      persistenceConversationId = conversationInit.conversationId;
+      persistenceClient = conversationInit.supabase;
+      conversationWasCreated = conversationInit.created;
+      console.log(
+        `[Nexora /api/omni-agent] conversation init mode=${conversationInit.mode} id=${persistenceConversationId ?? "null"} error=${conversationInit.error ?? "none"}`,
+      );
+      if (persistenceConversationId && lastContent) {
+        const userInsert = await persistenceClient.from("messages").insert({
+          conversation_id: persistenceConversationId,
+          user_id: userId,
+          role: "user",
+          content: lastContent,
+        });
+        console.log(
+          `[Nexora /api/omni-agent] user message insert ok=${!userInsert.error} error=${userInsert.error?.message ?? "none"}`,
+        );
+      }
+    } catch (error: unknown) {
+      console.warn(
+        "[Nexora /api/omni-agent] non-blocking persistence init failed",
+        error instanceof Error ? error.message : error,
+      );
+    }
 
     console.log("  [1/6] 🔍 Analyzing query...");
     const analysisStartMs = Date.now();
@@ -1214,6 +1434,16 @@ export async function POST(req: Request) {
       console.log("  [2/6] 🌐 Retrieval — skipped (not needed)");
     }
 
+    let strictPoliticalNews = false;
+    if (searchResponse && webSearchUsed) {
+      strictPoliticalNews = detectStrictPoliticalNewsQuery(lastContent);
+      if (strictPoliticalNews) {
+        console.log(
+          "        ✅ Strict political news mode will apply (tier-aware cap + stricter prompt)",
+        );
+      }
+    }
+
     if (queryPlan.groundingRequirement === "required" && !searchResponse) {
       console.log(
         "  ⚠️ Grounding required but no evidence retrieved. Returning retrieval-failure response.",
@@ -1342,7 +1572,10 @@ export async function POST(req: Request) {
         results: enrichWithCredibility(searchResponse.results),
       };
       const before = searchResponse.results.length;
-      const capped = capSourcesForSynthesis(searchResponse, 4);
+      const capLimit = strictPoliticalNews ? 8 : 4;
+      const capped = capSourcesForSynthesis(searchResponse, capLimit, {
+        politicalTierFirst: strictPoliticalNews,
+      });
       searchResponse = capped;
       const after = searchResponse.results.length;
       if (after < before) {
@@ -1356,6 +1589,12 @@ export async function POST(req: Request) {
     if (searchResponse && !lightweightWebSynthesisPath) {
       lightweightWebSynthesisPath = shouldUseLightweightWebSynthesis(
         searchResponse.results,
+      );
+    }
+    if (strictPoliticalNews && searchResponse) {
+      lightweightWebSynthesisPath = false;
+      console.log(
+        "        ✅ Strict political news: deep analysis + full fact check (no lightweight skip)",
       );
     }
 
@@ -1397,7 +1636,9 @@ export async function POST(req: Request) {
     if (searchResponse && !lightweightWebSynthesisPath) {
       console.log("  [3/6] 🧠 Running deep analysis...");
       const t3 = Date.now();
-      analysisText = deepAnalyze(searchResponse.results);
+      analysisText = strictPoliticalNews
+        ? formatPoliticalNewsEvidenceBlock(searchResponse.results)
+        : deepAnalyze(searchResponse.results);
       const step3Time = Date.now() - t3;
       pipelineSteps.push({
         name: "Deep Analysis",
@@ -1468,6 +1709,7 @@ export async function POST(req: Request) {
         ? renderClaimChecks(factCheckResult.claimChecks)
         : undefined,
       repoEvidenceBlock,
+      strictPoliticalNewsGrounding: strictPoliticalNews,
     });
     const step5Time = Date.now() - t5;
     pipelineSteps.push({
@@ -1491,11 +1733,132 @@ export async function POST(req: Request) {
     const generationStartMs = Date.now();
     let firstTokenMs: number | null = null;
     let chosenCandidate = primaryCandidate;
+    let assistantResponseText = "";
+    let titlePolished = false;
+
+    const persistAssistantResponse = async (
+      finalText: string,
+      chosenModelId: string,
+    ) => {
+      if (!persistenceClient || !persistenceConversationId) return;
+      console.log(
+        `[Nexora /api/omni-agent] persist assistant begin conversationId=${persistenceConversationId} chars=${finalText.length}`,
+      );
+      const content = finalText.trim();
+      if (!content) return;
+      try {
+        const assistantInsert = await persistenceClient.from("messages").insert({
+          conversation_id: persistenceConversationId,
+          user_id: userId,
+          role: "assistant",
+          content,
+          model: chosenModelId,
+          metadata: {
+            retrievalStrategy: queryPlan.retrievalStrategy,
+            webSearchUsed,
+            sourcesCount: searchResponse?.results.length ?? 0,
+            provider: chosenCandidate.provider,
+            requestId,
+          },
+        });
+        console.log(
+          `[Nexora /api/omni-agent] assistant message insert ok=${!assistantInsert.error} error=${assistantInsert.error?.message ?? "none"}`,
+        );
+        const convoUpdate = await persistenceClient
+          .from("conversations")
+          .update({
+            last_message_at: new Date().toISOString(),
+            model: chosenModelId,
+            agent_type: "omni",
+          })
+          .eq("id", persistenceConversationId)
+          .eq("user_id", userId);
+        console.log(
+          `[Nexora /api/omni-agent] conversation update ok=${!convoUpdate.error} error=${convoUpdate.error?.message ?? "none"}`,
+        );
+
+        const service = createServiceRoleClient();
+        const historyCount = await service
+          .from("conversations")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("archived", false);
+        console.log(
+          `[Nexora /api/omni-agent] history conversations count for user=${userId} count=${historyCount.count ?? 0} error=${historyCount.error?.message ?? "none"}`,
+        );
+
+        if (conversationWasCreated && !titlePolished && lastContent) {
+          const aiTitle = await maybeGenerateConversationTitle({
+            model: simpleModel,
+            firstUserMessage: lastContent,
+            assistantMessage: content,
+          });
+          if (aiTitle && aiTitle !== initialConversationTitle) {
+            const titleUpdate = await persistenceClient
+              .from("conversations")
+              .update({ title: aiTitle })
+              .eq("id", persistenceConversationId)
+              .eq("user_id", userId);
+            console.log(
+              `[Nexora /api/omni-agent] title polish ok=${!titleUpdate.error} title="${aiTitle}" error=${titleUpdate.error?.message ?? "none"}`,
+            );
+            titlePolished = !titleUpdate.error;
+          }
+        }
+      } catch (error: unknown) {
+        console.warn(
+          "[Nexora /api/omni-agent] non-blocking assistant persistence failed",
+          error instanceof Error ? error.message : error,
+        );
+      }
+    };
+
+    // Streaming diagnostics: measure chunk frequency/size to determine whether
+    // burstiness originates from provider chunking or our UI/stream pipeline.
+    type ChunkStats = {
+      count: number;
+      chars: number;
+      intervalSumMs: number;
+      intervalCount: number;
+      maxIntervalMs: number;
+      lastAt: number | null;
+    };
+    const chunkStatsByKey = new Map<string, ChunkStats>();
+    const ensureStats = (key: string): ChunkStats => {
+      const existing = chunkStatsByKey.get(key);
+      if (existing) return existing;
+      const fresh: ChunkStats = {
+        count: 0,
+        chars: 0,
+        intervalSumMs: 0,
+        intervalCount: 0,
+        maxIntervalMs: 0,
+        lastAt: null,
+      };
+      chunkStatsByKey.set(key, fresh);
+      return fresh;
+    };
+    const recordTextDelta = (key: string, delta: string) => {
+      const stats = ensureStats(key);
+      stats.count += 1;
+      stats.chars += delta.length;
+      const now = Date.now();
+      if (stats.lastAt != null) {
+        const interval = now - stats.lastAt;
+        stats.intervalSumMs += interval;
+        stats.intervalCount += 1;
+        stats.maxIntervalMs = Math.max(stats.maxIntervalMs, interval);
+      }
+      stats.lastAt = now;
+    };
 
     // Use createUIMessageStream to prepend pipeline tracking, then forward the
     // LLM stream.  We intercept the first `text-start` chunk and inject the
     // tracking block as an initial text-delta so it appears at the top of the
     // assistant message.
+    console.log(
+      `[Nexora /api/omni-agent] persistence stream phase start conversationId=${persistenceConversationId ?? "null"}`,
+    );
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const makeResult = (candidate: RouteCandidate) => {
@@ -1508,8 +1871,14 @@ export async function POST(req: Request) {
         };
 
         type WriterChunk = Parameters<typeof writer.write>[0];
+        const primaryStatsKey = `${primaryCandidate.provider}:${primaryCandidate.modelId}`;
+        const fallbackStatsKey = fallbackCandidate
+          ? `${fallbackCandidate.provider}:${fallbackCandidate.modelId}`
+          : null;
+
         const forwardReader = async (
           reader: ReadableStreamDefaultReader<unknown>,
+          statsKey: string,
         ) => {
           while (true) {
             const { done, value } = await reader.read();
@@ -1525,6 +1894,15 @@ export async function POST(req: Request) {
               console.log(
                 `        ✅ First token after ${firstTokenMs - generationStartMs}ms (${chosenCandidate.provider}/${chosenCandidate.modelId})`,
               );
+            }
+
+            if (
+              chunk.type === "text-delta" &&
+              typeof chunk.delta === "string" &&
+              chunk.delta.length > 0
+            ) {
+              recordTextDelta(statsKey, chunk.delta);
+              assistantResponseText += chunk.delta;
             }
             writer.write(chunk);
           }
@@ -1553,7 +1931,11 @@ export async function POST(req: Request) {
               const fallbackReader = makeResult(fallbackCandidate)
                 .toUIMessageStream()
                 .getReader();
-              await forwardReader(fallbackReader);
+              await forwardReader(
+                fallbackReader,
+                // fallbackStatsKey is non-null in this branch
+                fallbackStatsKey!,
+              );
               const completeMs = Date.now() - generationStartMs;
               updateRouteLatency(
                 fallbackCandidate,
@@ -1561,6 +1943,16 @@ export async function POST(req: Request) {
                 completeMs,
               );
               console.log(`        ✅ Stream complete after ${completeMs}ms`);
+                {
+                  const stats = chunkStatsByKey.get(fallbackStatsKey!);
+                  console.log(
+                    `        ✅ Stream complete after ${completeMs}ms (fallback) | chunks=${stats?.count ?? 0} avgChunkChars=${stats?.count ? (stats.chars / stats.count).toFixed(1) : "0"} avgIntervalMs=${stats?.intervalCount ? Math.round(stats.intervalSumMs / stats.intervalCount) : "0"} maxIntervalMs=${stats?.maxIntervalMs ?? 0}`,
+                  );
+                }
+              await persistAssistantResponse(
+                assistantResponseText,
+                fallbackCandidate.modelId,
+              );
               return;
             }
             console.log(
@@ -1578,18 +1970,50 @@ export async function POST(req: Request) {
             chunk.delta.length > 0
           ) {
             hasFirstDelta = true;
+            // Count burst chunk even though it is buffered.
+            recordTextDelta(primaryStatsKey, chunk.delta);
           }
         }
 
-        for (const chunk of bufferedChunks) writer.write(chunk);
-        await forwardReader(primaryReader);
+        {
+          // Burst diagnostics: how many chunks we buffered before the first visible
+          // text-delta. High numbers here often indicate upstream/source buffering.
+          const bufferedTextChunks = bufferedChunks.filter(
+            (c) => c.type === "text-delta" && typeof (c as any).delta === "string",
+          );
+          const bufferedChars = bufferedTextChunks.reduce(
+            (sum, c) => sum + ((c as any).delta as string).length,
+            0,
+          );
+          console.log(
+            `[OmniStreamChunks] pre-first-delta bufferedChunks=${bufferedChunks.length} bufferedTextDeltas=${bufferedTextChunks.length} bufferedChars=${bufferedChars}`,
+          );
+        }
+
+        for (const chunk of bufferedChunks) {
+          if (
+            chunk.type === "text-delta" &&
+            typeof chunk.delta === "string" &&
+            chunk.delta.length > 0
+          ) {
+            assistantResponseText += chunk.delta;
+          }
+          writer.write(chunk);
+        }
+        await forwardReader(primaryReader, primaryStatsKey);
         const completeMs = Date.now() - generationStartMs;
         updateRouteLatency(
           primaryCandidate,
           firstTokenMs == null ? completeMs : firstTokenMs - generationStartMs,
           completeMs,
         );
-        console.log(`        ✅ Stream complete after ${completeMs}ms`);
+        {
+          const stats = chunkStatsByKey.get(primaryStatsKey);
+          console.log(
+            `        ✅ Stream complete after ${completeMs}ms | chunks=${stats?.count ?? 0} avgChunkChars=${stats?.count ? (stats.chars / stats.count).toFixed(1) : "0"} avgIntervalMs=${stats?.intervalCount ? Math.round(stats.intervalSumMs / stats.intervalCount) : "0"} maxIntervalMs=${stats?.maxIntervalMs ?? 0}`,
+          );
+        }
+        await persistAssistantResponse(assistantResponseText, primaryCandidate.modelId);
       },
     });
 

@@ -14,9 +14,14 @@ interface WorkspaceContextType {
   setIsMultiChat: (val: boolean) => void;
   omniProvider: "groq" | "openrouter";
   setOmniProvider: (provider: "groq" | "openrouter") => void;
+  /** AI Chat: allow model to call Tavily web search tool (Globe in command bar). */
+  chatWebSearchEnabled: boolean;
+  setChatWebSearchEnabled: (val: boolean) => void;
 }
 
-const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
+const WorkspaceContext = createContext<WorkspaceContextType | undefined>(
+  undefined,
+);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0].id);
@@ -25,6 +30,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [omniProvider, setOmniProvider] = useState<"groq" | "openrouter">(
     "groq",
   );
+  const [chatWebSearchEnabled, setChatWebSearchEnabled] = useState(true);
 
   return (
     <WorkspaceContext.Provider
@@ -37,6 +43,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setIsMultiChat,
         omniProvider,
         setOmniProvider,
+        chatWebSearchEnabled,
+        setChatWebSearchEnabled,
       }}
     >
       {children}

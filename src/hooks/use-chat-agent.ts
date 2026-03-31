@@ -19,6 +19,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { randomUUID } from "@/lib/utils";
 import { getCompetingModelIds } from "@/lib/settings";
 import { sendChatMessage } from "@/lib/api";
+import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
+import { AI_CHAT_CONSENSUS_ENABLED } from "@/lib/constants";
 import type { ChatMessage } from "@/types";
 
 export interface UseChatAgentOptions {
@@ -36,7 +38,9 @@ export interface UseChatAgentReturn {
   lastMessageRef: React.RefObject<HTMLDivElement | null>;
   isChatting: boolean;
   handleInputChange: (
-    e: React.ChangeEvent<HTMLTextAreaElement> | React.ChangeEvent<HTMLInputElement>,
+    e:
+      | React.ChangeEvent<HTMLTextAreaElement>
+      | React.ChangeEvent<HTMLInputElement>,
   ) => void;
   handleSubmit: (e: React.FormEvent) => Promise<void>;
   handleNewChat: () => void;
@@ -48,6 +52,7 @@ export function useChatAgent({
   agentType,
   selectedModel,
 }: UseChatAgentOptions): UseChatAgentReturn {
+  const { chatWebSearchEnabled } = useWorkspace();
   const router = useRouter();
   const searchParams = useSearchParams();
   const idFromUrl = searchParams.get("id");
@@ -78,6 +83,42 @@ export function useChatAgent({
       setMessages([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idFromUrl]);
+
+  /** Load an existing persisted conversation when URL has ?id=... */
+  useEffect(() => {
+    if (!idFromUrl) return;
+    let active = true;
+    void fetch(`/api/history/${encodeURIComponent(idFromUrl)}`, {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const payload = (await res.json()) as {
+          messages?: Array<{
+            id: string;
+            role: "user" | "assistant" | "system" | "tool";
+            content: string;
+            model: string | null;
+          }>;
+        };
+        if (!active) return;
+        if (!res.ok) return;
+        const loaded = (payload.messages ?? [])
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            model: m.model ?? undefined,
+          }));
+        setMessages(loaded);
+      })
+      .catch(() => {
+        // Non-blocking fallback: UI stays usable even if history load fails.
+      });
+    return () => {
+      active = false;
+    };
   }, [idFromUrl]);
 
   // ─── Input handler ─────────────────────────────────────────────
@@ -115,30 +156,62 @@ export function useChatAgent({
 
       setIsLoading(true);
       try {
-        const enabledModels = getCompetingModelIds();
+        const enabledModels = AI_CHAT_CONSENSUS_ENABLED
+          ? getCompetingModelIds()
+          : [];
         const body: {
           model: string;
           messages: { role: string; content: string }[];
           enabledModels?: string[];
+          webSearch?: boolean;
+          conversationId?: string;
+          agentType?: string;
         } = {
           model: selectedModel,
           messages: nextMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          webSearch: chatWebSearchEnabled,
+          conversationId: idFromUrl ?? undefined,
+          agentType: agentType || "aichat",
         };
         if (enabledModels.length > 0) body.enabledModels = enabledModels;
 
         const payload = await sendChatMessage(body);
+
+        if (payload.meta) {
+          const {
+            displayName,
+            modelId,
+            provider,
+            webSearchCalls,
+            currentFactIntent,
+            preflightTavily,
+            preflightSubstantive,
+          } = payload.meta;
+          console.log(
+            `[Nexora chat] Response from ${displayName ?? payload.model ?? selectedModel}` +
+              (provider && modelId ? ` (${provider} / ${modelId})` : "") +
+              (typeof webSearchCalls === "number"
+                ? ` · webSearch tool calls: ${webSearchCalls}`
+                : "") +
+              (currentFactIntent
+                ? ` · currentFact=true preflight=${preflightTavily} substantive=${preflightSubstantive}`
+                : ""),
+            payload.meta,
+          );
+        } else if (payload.model) {
+          console.log(`[Nexora chat] Response from ${payload.model}`);
+        }
 
         setMessages((prev) => [
           ...prev,
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            content:
-              payload.text?.trim() || "I couldn't generate a response.",
-            model: selectedModel,
+            content: payload.text?.trim() || "I couldn't generate a response.",
+            model: payload.model ?? payload.meta?.modelId ?? selectedModel,
           },
         ]);
       } catch (err) {
@@ -157,7 +230,7 @@ export function useChatAgent({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isLoading, messages, idFromUrl, selectedModel, updateUrl],
+    [isLoading, messages, idFromUrl, selectedModel, updateUrl, chatWebSearchEnabled],
   );
 
   const handleSubmit = useCallback(

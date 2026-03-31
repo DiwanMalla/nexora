@@ -134,7 +134,8 @@ export function buildQueryPlan(
       retrievalStrategy: "direct_url_fetch",
       searchQuery: buildSearchQuery(userQuery),
       reasoning: "Direct URL provided; retrieval-first path selected.",
-      recommendedModel,
+      // Direct URL summaries are grounded, so route to the synthesis-focused model.
+      recommendedModel: "complexWriting",
     };
   }
 
@@ -171,8 +172,9 @@ export function buildQueryPlan(
       retrievalStrategy: "web_search",
       searchQuery: buildSearchQuery(analysis.searchQuery || userQuery),
       reasoning: "Current or external research intent detected.",
-      // Retrieval-backed comparison tasks usually don't need the heaviest model.
-      recommendedModel: hasComparisonIntent ? "complexWriting" : recommendedModel,
+      // Avoid routing common web/current/research prompts to "heavyReasoning" by default.
+      // Comparison still gets higher-quality synthesis, but stays on the grounded synthesis model.
+      recommendedModel: hasComparisonIntent ? "complexWriting" : "simple",
     };
   }
 

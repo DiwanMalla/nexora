@@ -15,35 +15,39 @@ export type OpenRouterRouteKey =
 
 export const OPENROUTER_MODELS: OpenRouterModelEntry[] = [
   {
-    id: "moonshotai/kimi-k2.5",
-    label: "Kimi K2.5",
+    id: "openai/gpt-4o-mini",
+    label: "GPT-4o mini (Fast Default)",
     tier: "budget",
-    notes: "Cheap general-purpose model for early routing and QA.",
+    notes: "Fast default model for quick answers and reasoning-only prompts.",
+  },
+  {
+    id: "anthropic/claude-3.7-sonnet",
+    label: "Claude 3.7 Sonnet (Grounded Synthesis)",
+    tier: "premium",
+    notes: "Strong grounded synthesis, writing, repo & URL summaries, and technical explanations.",
+  },
+  {
+    id: "openai/o3-mini-high",
+    label: "o3-mini-high (Heavy Reasoning)",
+    tier: "premium",
+    notes: "Higher-quality multi-step reasoning when quality matters more than speed.",
   },
   {
     id: "deepseek/deepseek-chat-v3-0324",
-    label: "DeepSeek Chat V3",
+    label: "DeepSeek Chat V3 (Backup Reasoning)",
     tier: "budget",
-    notes: "Cost-efficient model for coding and broad reasoning.",
-  },
-  {
-    id: "qwen/qwen3-4b:free",
-    label: "Qwen3 4B (Free)",
-    tier: "budget",
-    notes: "Free fallback model for low-cost production testing.",
-  },
-  {
-    id: "google/gemini-2.0-flash-001",
-    label: "Gemini 2.0 Flash",
-    tier: "balanced",
-    notes: "Fast, strong default for mixed workloads.",
+    notes: "Backup reasoning model for degraded-mode retries / first-token timeout fallback.",
   },
 ];
 
+export const OPENROUTER_FAST_FALLBACK_MODEL_ID = "openai/gpt-4o-mini";
+export const OPENROUTER_BACKUP_REASONING_MODEL_ID =
+  "deepseek/deepseek-chat-v3-0324";
+
 export const OPENROUTER_OMNI_MODEL_MAP: Record<OpenRouterRouteKey, string> = {
-  coding: "deepseek/deepseek-chat-v3-0324",
-  heavyReasoning: "moonshotai/kimi-k2.5",
-  complexWriting: "moonshotai/kimi-k2.5",
-  simple: "deepseek/deepseek-chat-v3-0324",
+  simple: "openai/gpt-4o-mini",
+  complexWriting: "anthropic/claude-3.7-sonnet",
+  coding: "anthropic/claude-3.7-sonnet",
+  heavyReasoning: "openai/o3-mini-high",
 };
 

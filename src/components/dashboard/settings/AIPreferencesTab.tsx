@@ -12,6 +12,7 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AI_PROVIDERS, getModelsByProvider } from "@/lib/ai-providers";
 import type { AIProvider } from "@/lib/ai-providers";
+import { AI_CHAT_CONSENSUS_ENABLED } from "@/lib/constants";
 
 interface AIProviderPref {
   enabled: boolean;
@@ -72,45 +73,60 @@ export function AIPreferencesTab({
         </div>
       </section>
 
-      {/* Multi-Chat Consensus */}
-      <section className="rounded-[2rem] border border-violet/20 bg-violet/5 p-6">
-        <div className="mb-6">
+      {/* Multi-Chat Consensus — paused until single + compare are stable */}
+      {AI_CHAT_CONSENSUS_ENABLED ? (
+        <section className="rounded-[2rem] border border-violet/20 bg-violet/5 p-6">
+          <div className="mb-6">
+            <h3 className="text-sm font-bold text-text uppercase tracking-tight">
+              Multi-Chat Consensus
+            </h3>
+            <p className="mt-1 text-[var(--text-xs)] text-text-muted leading-relaxed">
+              Select 2 or more models to run in parallel. Nexora will synthesize
+              the best answer from their combined intelligence.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {competingModels.map((m) => {
+              if (!m.apiId) return null;
+              const isSelected = competingModelIds.includes(m.apiId);
+
+              return (
+                <button
+                  key={m.apiId}
+                  onClick={() => m.apiId && onToggleCompetingModel(m.apiId)}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all",
+                    isSelected
+                      ? "border-violet/40 bg-violet/10 text-text"
+                      : "border-border bg-surface-overlay/50 text-text-muted hover:border-border-hover",
+                  )}
+                >
+                  <span className="truncate text-[11px] font-bold uppercase tracking-tight">
+                    {m.name}
+                  </span>
+                  {isSelected && (
+                    <Check className="h-3 w-3 text-violet-light shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <section className="rounded-[2rem] border border-border bg-surface-overlay/30 p-6">
           <h3 className="text-sm font-bold text-text uppercase tracking-tight">
             Multi-Chat Consensus
           </h3>
-          <p className="mt-1 text-[var(--text-xs)] text-text-muted leading-relaxed">
-            Select 2 or more models to run in parallel. Nexora will synthesize
-            the best answer from their combined intelligence.
+          <p className="mt-2 text-[var(--text-xs)] text-text-muted leading-relaxed">
+            Temporarily unavailable while we stabilize single-model answers and
+            live verification. Use{" "}
+            <span className="font-semibold text-text">Multi</span> in the chat
+            bar for side-by-side compare. Consensus will return in a later
+            release.
           </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {competingModels.map((m) => {
-            if (!m.apiId) return null;
-            const isSelected = competingModelIds.includes(m.apiId);
-
-            return (
-              <button
-                key={m.apiId}
-                onClick={() => m.apiId && onToggleCompetingModel(m.apiId)}
-                className={cn(
-                  "flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all",
-                  isSelected
-                    ? "border-violet/40 bg-violet/10 text-text"
-                    : "border-border bg-surface-overlay/50 text-text-muted hover:border-border-hover",
-                )}
-              >
-                <span className="truncate text-[11px] font-bold uppercase tracking-tight">
-                  {m.name}
-                </span>
-                {isSelected && (
-                  <Check className="h-3 w-3 text-violet-light shrink-0" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
