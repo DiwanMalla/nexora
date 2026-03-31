@@ -337,6 +337,10 @@ export async function POST(req: Request) {
   const modelId = enabledModels.length === 1 ? enabledModels[0] : model;
   const modelDisplayName = getModelNameByApiId(modelId) ?? modelId;
   const modelProvider = getProviderForModelId(modelId);
+  const languageModel =
+    modelProvider === "OpenRouter"
+      ? getOpenRouter()(modelId as Parameters<typeof groq>[0])
+      : groq(modelId);
   const authState = await auth();
   const userId = authState.userId;
   if (!userId) {
@@ -352,7 +356,14 @@ export async function POST(req: Request) {
   const lastUserText = plainTextFromChatContent(lastUserContent)
     .replace(/^\uFEFF/, "")
     .trim();
-  const initialConversationTitle = buildConversationTitleFromPrompt(lastUserText);
+  let initialConversationTitle = buildConversationTitleFromPrompt(lastUserText);
+  if (lastUserText && !requestedConversationId) {
+    const aiTitle = await maybeGenerateConversationTitle({
+      model: languageModel,
+      firstUserMessage: lastUserText,
+    });
+    if (aiTitle) initialConversationTitle = aiTitle;
+  }
 
   const factIntent = detectCurrentFactIntent(lastUserText);
   const effectiveWebSearch = webSearchEnabled || factIntent.currentFact;
@@ -399,7 +410,6 @@ export async function POST(req: Request) {
   let persistenceConversationId: string | null = null;
   let persistenceClient: Awaited<ReturnType<typeof createClerkSupabaseClient>> | null =
     null;
-  let conversationWasCreated = false;
   try {
     await ensureProfileExists(userId);
     const conversationInit = await getOrCreateConversation({
@@ -411,7 +421,6 @@ export async function POST(req: Request) {
     });
     persistenceClient = conversationInit.supabase;
     persistenceConversationId = conversationInit.conversationId;
-    conversationWasCreated = conversationInit.created;
     if (persistenceClient && persistenceConversationId && lastUserText) {
       await persistenceClient.from("messages").insert({
         conversation_id: persistenceConversationId,
@@ -428,11 +437,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    const languageModel =
-      modelProvider === "OpenRouter"
-        ? getOpenRouter()(modelId as Parameters<typeof groq>[0])
-        : groq(modelId);
-
     const executedWebSearchQueries: string[] = [];
 
     const webSearchTool = tool({
@@ -655,20 +659,6 @@ export async function POST(req: Request) {
           .eq("id", persistenceConversationId)
           .eq("user_id", userId);
 
-        if (conversationWasCreated && lastUserText) {
-          const aiTitle = await maybeGenerateConversationTitle({
-            model: languageModel,
-            firstUserMessage: lastUserText,
-            assistantMessage: responseText,
-          });
-          if (aiTitle && aiTitle !== initialConversationTitle) {
-            await persistenceClient
-              .from("conversations")
-              .update({ title: aiTitle })
-              .eq("id", persistenceConversationId)
-              .eq("user_id", userId);
-          }
-        }
       } catch (error: unknown) {
         console.warn(
           "[Nexora /api/chat] non-blocking assistant persistence failed",

@@ -1213,7 +1213,7 @@ export async function POST(req: Request) {
     const requestedConversationId = req.headers
       .get("x-conversation-id")
       ?.trim();
-    const initialConversationTitle = buildConversationTitleFromPrompt(lastContent);
+    let initialConversationTitle = buildConversationTitleFromPrompt(lastContent);
     console.log(
       `[Nexora /api/omni-agent] requestedConversationId=${requestedConversationId ?? "none"}`,
     );
@@ -1235,13 +1235,19 @@ export async function POST(req: Request) {
     const simpleModel = openRouterFactory(
       simpleModelId as Parameters<typeof groq>[0],
     );
+    if (!requestedConversationId && lastContent) {
+      const aiTitle = await maybeGenerateConversationTitle({
+        model: simpleModel,
+        firstUserMessage: lastContent,
+      });
+      if (aiTitle) initialConversationTitle = aiTitle;
+    }
 
     let persistenceConversationId: string | null = null;
     let persistenceClient:
       | Awaited<ReturnType<typeof createClerkSupabaseClient>>
       | ReturnType<typeof createServiceRoleClient>
       | null = null;
-    let conversationWasCreated = false;
     try {
       const profileReady = await ensureProfileExists(userId);
       console.log(
@@ -1256,7 +1262,6 @@ export async function POST(req: Request) {
       });
       persistenceConversationId = conversationInit.conversationId;
       persistenceClient = conversationInit.supabase;
-      conversationWasCreated = conversationInit.created;
       console.log(
         `[Nexora /api/omni-agent] conversation init mode=${conversationInit.mode} id=${persistenceConversationId ?? "null"} error=${conversationInit.error ?? "none"}`,
       );
@@ -1734,7 +1739,6 @@ export async function POST(req: Request) {
     let firstTokenMs: number | null = null;
     let chosenCandidate = primaryCandidate;
     let assistantResponseText = "";
-    let titlePolished = false;
 
     const persistAssistantResponse = async (
       finalText: string,
@@ -1787,24 +1791,6 @@ export async function POST(req: Request) {
           `[Nexora /api/omni-agent] history conversations count for user=${userId} count=${historyCount.count ?? 0} error=${historyCount.error?.message ?? "none"}`,
         );
 
-        if (conversationWasCreated && !titlePolished && lastContent) {
-          const aiTitle = await maybeGenerateConversationTitle({
-            model: simpleModel,
-            firstUserMessage: lastContent,
-            assistantMessage: content,
-          });
-          if (aiTitle && aiTitle !== initialConversationTitle) {
-            const titleUpdate = await persistenceClient
-              .from("conversations")
-              .update({ title: aiTitle })
-              .eq("id", persistenceConversationId)
-              .eq("user_id", userId);
-            console.log(
-              `[Nexora /api/omni-agent] title polish ok=${!titleUpdate.error} title="${aiTitle}" error=${titleUpdate.error?.message ?? "none"}`,
-            );
-            titlePolished = !titleUpdate.error;
-          }
-        }
       } catch (error: unknown) {
         console.warn(
           "[Nexora /api/omni-agent] non-blocking assistant persistence failed",
