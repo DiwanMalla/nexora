@@ -21,7 +21,11 @@ import { getCompetingModelIds } from "@/lib/settings";
 import { sendChatMessage } from "@/lib/api";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { AI_CHAT_CONSENSUS_ENABLED } from "@/lib/constants";
-import type { ChatMessage } from "@/types";
+import type { ChatAttachmentRef, ChatMessage } from "@/types";
+import {
+  useComposerAttachment,
+  type ComposerAttachment,
+} from "@/hooks/use-composer-attachment";
 
 export interface UseChatAgentOptions {
   /** The agent `type` value for URL params (e.g. "omni", "aichat"). */
@@ -46,6 +50,18 @@ export interface UseChatAgentReturn {
   handleNewChat: () => void;
   /** Reset messages when URL id changes (navigate away). */
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  /** Multi-chat: append user bubble + clear input + URL; no API (API runs in MultiChatColumns). */
+  flushMultiRoundLocal: (
+    userLine: string,
+    attachmentRefs?: ChatAttachmentRef[],
+  ) => void;
+  clearComposerAttachment: () => void;
+  composerAttachment: ComposerAttachment | null;
+  openAttachmentPicker: () => void;
+  onAttachmentFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  attachmentFileInputRef: React.RefObject<HTMLInputElement | null>;
+  /** Stable thread id aligned with URL (allocates UUID before first API if needed). */
+  resolveConversationId: () => string;
 }
 
 export function useChatAgent({
@@ -56,6 +72,8 @@ export function useChatAgent({
   const router = useRouter();
   const searchParams = useSearchParams();
   const idFromUrl = searchParams.get("id");
+
+  const conversationIdRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -76,6 +94,38 @@ export function useChatAgent({
     },
     [router, agentType],
   );
+
+  const resolveConversationId = useCallback((): string => {
+    if (idFromUrl) {
+      conversationIdRef.current = idFromUrl;
+      return idFromUrl;
+    }
+    if (conversationIdRef.current) {
+      updateUrl(conversationIdRef.current);
+      return conversationIdRef.current;
+    }
+    const id = randomUUID();
+    conversationIdRef.current = id;
+    updateUrl(id);
+    return id;
+  }, [idFromUrl, updateUrl]);
+
+  useEffect(() => {
+    if (idFromUrl) {
+      conversationIdRef.current = idFromUrl;
+    }
+  }, [idFromUrl]);
+
+  const {
+    attachment: composerAttachment,
+    clearAttachment: clearComposerAttachment,
+    openFilePicker: openAttachmentPicker,
+    onFileSelected: onAttachmentFileChange,
+    fileInputRef: attachmentFileInputRef,
+  } = useComposerAttachment(idFromUrl, {
+    ensureConversationId: resolveConversationId,
+    agentType: agentType || "aichat",
+  });
 
   /** Clear messages when navigating to a URL without an ID. */
   useEffect(() => {
@@ -100,9 +150,29 @@ export function useChatAgent({
             content: string;
             model: string | null;
           }>;
+          attachments?: Array<{
+            id: string;
+            message_id: string | null;
+            original_name: string;
+            mime_type: string;
+            size_bytes: number;
+            status: string;
+          }>;
         };
         if (!active) return;
         if (!res.ok) return;
+        const attByMsg = new Map<string, ChatAttachmentRef[]>();
+        for (const a of payload.attachments ?? []) {
+          if (!a.message_id) continue;
+          const list = attByMsg.get(a.message_id) ?? [];
+          list.push({
+            id: a.id,
+            originalName: a.original_name,
+            mimeType: a.mime_type,
+            sizeBytes: a.size_bytes,
+          });
+          attByMsg.set(a.message_id, list);
+        }
         const loaded = (payload.messages ?? [])
           .filter((m) => m.role === "user" || m.role === "assistant")
           .map((m) => ({
@@ -110,6 +180,8 @@ export function useChatAgent({
             role: m.role as "user" | "assistant",
             content: m.content,
             model: m.model ?? undefined,
+            attachments:
+              m.role === "user" ? attByMsg.get(m.id) : undefined,
           }));
         setMessages(loaded);
       })
@@ -134,25 +206,63 @@ export function useChatAgent({
     [],
   );
 
+  const flushMultiRoundLocal = useCallback(
+    (userLine: string, attachmentRefs?: ChatAttachmentRef[]) => {
+      resolveConversationId();
+      const userMessage: ChatMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: userLine,
+        attachments: attachmentRefs,
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setInput("");
+    },
+    [resolveConversationId],
+  );
+
   // ─── Submit ────────────────────────────────────────────────────
 
   const submitQuery = useCallback(
     async (query: string) => {
-      if (!query || isLoading) return;
+      const att = composerAttachment;
+      const attachmentIds =
+        att?.phase === "ready" &&
+        att.id !== "pending" &&
+        att.id !== "local"
+          ? [att.id]
+          : [];
+      const userContent =
+        query.trim() ||
+        (attachmentIds.length > 0 ? `📎 ${att!.originalName}` : "");
+
+      if (!userContent.trim() && attachmentIds.length === 0) return;
+      if (isLoading) return;
+
+      const userAttachments: ChatAttachmentRef[] | undefined =
+        attachmentIds.length > 0
+          ? [
+              {
+                id: att!.id,
+                originalName: att!.originalName,
+                mimeType: att!.mimeType,
+                sizeBytes: att!.sizeBytes,
+              },
+            ]
+          : undefined;
 
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
-        content: query,
+        content: userContent,
+        attachments: userAttachments,
       };
 
       const nextMessages = [...messages, userMessage];
       setMessages(nextMessages);
       setInput("");
 
-      if (!idFromUrl) {
-        updateUrl(randomUUID());
-      }
+      const activeConversationId = resolveConversationId();
 
       setIsLoading(true);
       try {
@@ -166,6 +276,7 @@ export function useChatAgent({
           webSearch?: boolean;
           conversationId?: string;
           agentType?: string;
+          attachmentIds?: string[];
         } = {
           model: selectedModel,
           messages: nextMessages.map((m) => ({
@@ -173,10 +284,11 @@ export function useChatAgent({
             content: m.content,
           })),
           webSearch: chatWebSearchEnabled,
-          conversationId: idFromUrl ?? undefined,
+          conversationId: activeConversationId,
           agentType: agentType || "aichat",
         };
         if (enabledModels.length > 0) body.enabledModels = enabledModels;
+        if (attachmentIds.length > 0) body.attachmentIds = attachmentIds;
 
         const payload = await sendChatMessage(body);
 
@@ -214,6 +326,9 @@ export function useChatAgent({
             model: payload.model ?? payload.meta?.modelId ?? selectedModel,
           },
         ]);
+        if (attachmentIds.length > 0) {
+          clearComposerAttachment();
+        }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -230,7 +345,16 @@ export function useChatAgent({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isLoading, messages, idFromUrl, selectedModel, updateUrl, chatWebSearchEnabled],
+    [
+      isLoading,
+      messages,
+      idFromUrl,
+      selectedModel,
+      resolveConversationId,
+      chatWebSearchEnabled,
+      composerAttachment,
+      clearComposerAttachment,
+    ],
   );
 
   const handleSubmit = useCallback(
@@ -242,16 +366,18 @@ export function useChatAgent({
   );
 
   const handleNewChat = useCallback(() => {
+    conversationIdRef.current = null;
     setMessages([]);
     setInput("");
+    clearComposerAttachment();
     updateUrl(null);
-  }, [updateUrl]);
+  }, [updateUrl, clearComposerAttachment]);
 
   // ─── Auto-submit from ?q= param ───────────────────────────────
 
   useEffect(() => {
     const initQ = searchParams.get("q");
-    if (initQ && messages.length === 0 && !isLoading) {
+    if (initQ?.trim() && messages.length === 0 && !isLoading) {
       submitQuery(initQ);
       // Remove ?q= so it doesn't re-trigger on refresh
       const url = new URL(window.location.href);
@@ -287,5 +413,12 @@ export function useChatAgent({
     handleSubmit,
     handleNewChat,
     setMessages,
+    flushMultiRoundLocal,
+    clearComposerAttachment,
+    composerAttachment,
+    openAttachmentPicker,
+    onAttachmentFileChange,
+    attachmentFileInputRef,
+    resolveConversationId,
   };
 }

@@ -159,6 +159,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      attachments: {
+        Row: {
+          id: string;
+          user_id: string;
+          conversation_id: string | null;
+          message_id: string | null;
+          storage_path: string;
+          original_name: string;
+          mime_type: string;
+          size_bytes: number;
+          status: "uploaded" | "processing" | "ready" | "error";
+          extracted_text: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          conversation_id?: string | null;
+          message_id?: string | null;
+          storage_path: string;
+          original_name: string;
+          mime_type: string;
+          size_bytes: number;
+          status?: "uploaded" | "processing" | "ready" | "error";
+          extracted_text?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          conversation_id?: string | null;
+          message_id?: string | null;
+          storage_path?: string;
+          original_name?: string;
+          mime_type?: string;
+          size_bytes?: number;
+          status?: "uploaded" | "processing" | "ready" | "error";
+          extracted_text?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -7,6 +7,14 @@
 
 // ─── Chat ──────────────────────────────────────────────────────────────────
 
+/** File the user attached to a message (v1). */
+export type ChatAttachmentRef = {
+  id: string;
+  originalName: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
 /** A single message in a chat conversation. */
 export type ChatMessage = {
   id: string;
@@ -14,6 +22,7 @@ export type ChatMessage = {
   content: string;
   /** The model ID that produced this response (assistant messages only). */
   model?: string;
+  attachments?: ChatAttachmentRef[];
 };
 
 /** Debug / UX metadata returned with chat completions (also logged server-side). */
@@ -72,6 +81,8 @@ export type ChatAPIRequest = {
   conversationId?: string;
   /** Agent context in single-model chat (aichat/researcher/coder/analyst). */
   agentType?: string;
+  /** Ready attachment row ids (v1: at most one). Server injects extracted text as context. */
+  attachmentIds?: string[];
 };
 
 // ─── AI Models & Agents ─────────────────────────────────────────────────────

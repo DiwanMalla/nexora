@@ -17,7 +17,8 @@ import {
 import { ConversationTitleBar } from "@/components/chat/ConversationTitleBar";
 import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
-import type { ChatMessage } from "@/types";
+import { useComposerAttachment } from "@/hooks/use-composer-attachment";
+import type { ChatAttachmentRef, ChatMessage } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -162,6 +163,32 @@ export function OmniAgent() {
         : `omni-${Date.now()}-${Math.random().toString(16).slice(2)}`),
   );
   const activeConversationId = conversationIdFromUrl ?? conversationIdRef.current;
+
+  const {
+    attachment: composerAttachment,
+    clearAttachment: clearComposerAttachment,
+    openFilePicker: openAttachmentPicker,
+    onFileSelected: onAttachmentFileChange,
+    fileInputRef: attachmentFileInputRef,
+  } = useComposerAttachment(conversationIdFromUrl);
+
+  const attachmentIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const att = composerAttachment;
+    if (
+      att?.phase === "ready" &&
+      att.id !== "pending" &&
+      att.id !== "local"
+    ) {
+      attachmentIdsRef.current = [att.id];
+    } else {
+      attachmentIdsRef.current = [];
+    }
+  }, [composerAttachment]);
+
+  const [historyAttachmentByMessageId, setHistoryAttachmentByMessageId] =
+    useState<Map<string, ChatAttachmentRef[]>>(new Map());
+
   const omniProviderRef = useRef(omniProvider);
   const requestStartMsRef = useRef<number | null>(null);
   const headersAtMsRef = useRef<number | null>(null);
@@ -169,6 +196,7 @@ export function OmniAgent() {
   const pendingQueryRef = useRef<string>("");
   const currentStrategyRef = useRef<StrategyProfileKey>("none");
   const lastSubmissionRef = useRef<{ text: string; at: number } | null>(null);
+  const submitInFlightRef = useRef(false);
   const clientStreamStatsRef = useRef<{
     updateCount: number;
     charsDeltaSum: number;
@@ -238,10 +266,30 @@ export function OmniAgent() {
       });
   }, []);
 
+  const prepareSendMessagesRequest = useCallback(
+    ({
+      messages: msgs,
+      body,
+    }: {
+      messages: unknown[];
+      body: Record<string, unknown> | undefined;
+    }) => ({
+      body: {
+        ...(body && typeof body === "object" ? body : {}),
+        messages: msgs,
+        ...(attachmentIdsRef.current.length > 0
+          ? { attachmentIds: attachmentIdsRef.current }
+          : {}),
+      },
+    }),
+    [],
+  );
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/omni-agent",
+        prepareSendMessagesRequest,
         fetch: async (url, init) => {
           if (requestStartMsRef.current == null) {
             requestStartMsRef.current = Date.now();
@@ -327,7 +375,7 @@ export function OmniAgent() {
           return res;
         },
       }),
-    [],
+    [prepareSendMessagesRequest],
   );
 
   const {
@@ -335,11 +383,19 @@ export function OmniAgent() {
     sendMessage,
     status,
     setMessages: setUiMessages,
-  } = useChat({ transport });
+  } = useChat({
+    transport,
+    onFinish: () => {
+      clearComposerAttachment();
+    },
+  });
 
   useEffect(() => {
     const idFromUrl = searchParams.get("id");
-    if (!idFromUrl) return;
+    if (!idFromUrl) {
+      setHistoryAttachmentByMessageId(new Map());
+      return;
+    }
     if (conversationIdRef.current !== idFromUrl) {
       conversationIdRef.current = idFromUrl;
     }
@@ -359,8 +415,29 @@ export function OmniAgent() {
             role: "user" | "assistant" | "system" | "tool";
             content: string;
           }>;
+          attachments?: Array<{
+            id: string;
+            message_id: string | null;
+            original_name: string;
+            mime_type: string;
+            size_bytes: number;
+            status: string;
+          }>;
         };
         if (!active || !res.ok) return;
+        const attByMsg = new Map<string, ChatAttachmentRef[]>();
+        for (const a of payload.attachments ?? []) {
+          if (!a.message_id) continue;
+          const list = attByMsg.get(a.message_id) ?? [];
+          list.push({
+            id: a.id,
+            originalName: a.original_name,
+            mimeType: a.mime_type,
+            sizeBytes: a.size_bytes,
+          });
+          attByMsg.set(a.message_id, list);
+        }
+        setHistoryAttachmentByMessageId(attByMsg);
         const hydrated = (payload.messages ?? [])
           .filter((m) => m.role === "user" || m.role === "assistant")
           .map((m) => ({
@@ -378,11 +455,22 @@ export function OmniAgent() {
     };
   }, [searchParams, setUiMessages]);
 
-  const messages = useMemo(
-    () => uiMessagesToChatMessages(uiMessages),
-    [uiMessages],
-  );
+  const messages = useMemo(() => {
+    const base = uiMessagesToChatMessages(uiMessages);
+    return base.map((m) => ({
+      ...m,
+      attachments:
+        m.role === "user"
+          ? historyAttachmentByMessageId.get(m.id)
+          : undefined,
+    }));
+  }, [uiMessages, historyAttachmentByMessageId]);
   const isLoading = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    if (status === "ready" || status === "error") {
+      submitInFlightRef.current = false;
+    }
+  }, [status]);
   useEffect(() => {
     if (status !== "submitted") return;
     setPipelineProgressSteps([]);
@@ -538,27 +626,40 @@ export function OmniAgent() {
   const handleSubmit = useCallback(
     async (e?: React.FormEvent) => {
       e?.preventDefault?.();
+      if (submitInFlightRef.current) {
+        console.log("[Omni] submit blocked: request already in-flight");
+        return;
+      }
       const text = input.trim();
-      if (!text || isLoading) return;
+      const att = composerAttachment;
+      const ids =
+        att?.phase === "ready" &&
+        att.id !== "pending" &&
+        att.id !== "local"
+          ? [att.id]
+          : [];
+      const sendText = text || (ids.length > 0 ? `📎 ${att!.originalName}` : "");
+      if (!sendText || isLoading) return;
       const now = Date.now();
       const recent = lastSubmissionRef.current;
-      if (recent && recent.text === text && now - recent.at < 1500) {
+      if (recent && recent.text === sendText && now - recent.at < 1500) {
         console.log("[Omni] duplicate submission suppressed");
         return;
       }
-      lastSubmissionRef.current = { text, at: now };
-      pendingQueryRef.current = text;
-      const freshStrategy = detectStrategyFromQuery(text);
+      lastSubmissionRef.current = { text: sendText, at: now };
+      submitInFlightRef.current = true;
+      pendingQueryRef.current = sendText;
+      const freshStrategy = detectStrategyFromQuery(sendText);
       currentStrategyRef.current = freshStrategy;
       const freshSteps = getProfileSteps(freshStrategy);
       setPipelineProgressSteps([]);
       setActiveStepLabel(freshSteps[0]);
       setRetrievalQualityNotice(null);
 
-      if (shouldFetchImagesForQuery(text)) {
-        startImageSearch(text);
+      if (shouldFetchImagesForQuery(sendText)) {
+        startImageSearch(sendText);
       } else {
-        setLatestQuery(text);
+        setLatestQuery(sendText);
         setReplyImages([]);
         setImageSearchError(null);
         setImageSearchState("idle");
@@ -571,9 +672,27 @@ export function OmniAgent() {
           { scroll: false },
         );
       }
-      await sendMessage({ text });
+      // Keep in sync with transport's prepareSendMessagesRequest (ref can lag useEffect by a frame).
+      attachmentIdsRef.current = ids;
+      try {
+        await sendMessage({ text: sendText });
+      } catch (error) {
+        submitInFlightRef.current = false;
+        console.warn(
+          "[Omni] sendMessage failed",
+          error instanceof Error ? error.message : error,
+        );
+      }
     },
-    [input, isLoading, sendMessage, startImageSearch, router, searchParams],
+    [
+      input,
+      isLoading,
+      sendMessage,
+      startImageSearch,
+      router,
+      searchParams,
+      composerAttachment,
+    ],
   );
 
   return (
@@ -613,6 +732,11 @@ export function OmniAgent() {
                 onSubmit={handleSubmit}
                 placeholder="Ask Omni anything..."
                 compact
+                composerAttachment={composerAttachment}
+                onOpenAttachmentPicker={openAttachmentPicker}
+                onClearComposerAttachment={clearComposerAttachment}
+                attachmentFileInputRef={attachmentFileInputRef}
+                onAttachmentFileChange={onAttachmentFileChange}
               />
             </div>
           </div>
@@ -634,6 +758,11 @@ export function OmniAgent() {
               handleInputChange={handleInputChange}
               onSubmit={handleSubmit}
               placeholder="Ask Omni anything..."
+              composerAttachment={composerAttachment}
+              onOpenAttachmentPicker={openAttachmentPicker}
+              onClearComposerAttachment={clearComposerAttachment}
+              attachmentFileInputRef={attachmentFileInputRef}
+              onAttachmentFileChange={onAttachmentFileChange}
             />
           </div>
         </div>

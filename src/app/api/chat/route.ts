@@ -41,8 +41,14 @@ import {
   getNexoraSystemPrompt,
 } from "@/lib/nexora-system-prompt";
 import type { ChatAPIResponse, ChatResponseMeta } from "@/types";
+import {
+  attachmentContextForPrompt,
+  linkAttachmentsToUserMessage,
+  loadReadyAttachmentsForUser,
+  normalizeAttachmentIds,
+} from "@/lib/attachments/db";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY || "",
@@ -259,6 +265,7 @@ export async function POST(req: Request) {
     webSearch?: boolean;
     conversationId?: string;
     agentType?: string;
+    attachmentIds?: string[];
   };
 
   try {
@@ -294,9 +301,19 @@ export async function POST(req: Request) {
     enabledModels = [];
   }
 
+  const attachmentIds = normalizeAttachmentIds(body.attachmentIds);
+
   // ─── Consensus mode (2+ models) ──────────────────────
 
   if (enabledModels.length > 1) {
+    if (attachmentIds.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Attachments are not supported in multi-model consensus mode.",
+        } satisfies ChatAPIResponse,
+        { status: 400 },
+      );
+    }
     try {
       const text = await runCompetingConsensus(messages, enabledModels);
       const modelLabel = enabledModels
@@ -350,23 +367,121 @@ export async function POST(req: Request) {
     );
   }
 
+  if (attachmentIds.length > 0) {
+    console.log("[Nexora /api/chat] incoming attachments", {
+      userId,
+      requestedConversationId: requestedConversationId ?? null,
+      attachmentIds,
+    });
+  }
+
+  const serviceSb = createServiceRoleClient();
+  const attachmentItems = await loadReadyAttachmentsForUser(
+    serviceSb,
+    userId,
+    attachmentIds,
+  );
+
+  if (attachmentIds.length > 0 && attachmentItems.length === 0) {
+    const { data: diagRows, error: diagErr } = await serviceSb
+      .from("attachments")
+      .select("id,status,user_id,extracted_text")
+      .in("id", attachmentIds);
+
+    let failureCode =
+      "ATTACHMENT_NOT_LOADABLE" as
+        | "ATTACHMENT_NOT_LOADABLE"
+        | "NO_ROWS"
+        | "WRONG_USER"
+        | "NOT_READY"
+        | "EMPTY_EXTRACTED_TEXT";
+
+    if (diagErr) {
+      console.warn("[Nexora /api/chat] attachment diagnostic query error", {
+        message: diagErr.message,
+        userId,
+        requestedConversationId,
+        attachmentIds,
+      });
+    } else if (!diagRows?.length) {
+      failureCode = "NO_ROWS";
+      console.warn("[Nexora /api/chat] attachment 400: no rows for ids", {
+        userId,
+        requestedConversationId,
+        attachmentIds,
+      });
+    } else {
+      const row = diagRows[0]!;
+      if (row.user_id !== userId) {
+        failureCode = "WRONG_USER";
+        console.warn("[Nexora /api/chat] attachment 400: user mismatch", {
+          userId,
+          rowUserId: row.user_id,
+          attachmentIds,
+        });
+      } else if (row.status !== "ready") {
+        failureCode = "NOT_READY";
+        console.warn("[Nexora /api/chat] attachment 400: status not ready", {
+          userId,
+          status: row.status,
+          attachmentIds,
+        });
+      } else if (!row.extracted_text?.trim()) {
+        failureCode = "EMPTY_EXTRACTED_TEXT";
+        console.warn(
+          "[Nexora /api/chat] attachment 400: ready but empty extracted_text",
+          { userId, attachmentIds },
+        );
+      } else {
+        console.warn(
+          "[Nexora /api/chat] attachment 400: unexpected empty loadReadyAttachmentsForUser",
+          { userId, requestedConversationId, attachmentIds },
+        );
+      }
+    }
+
+    return NextResponse.json(
+      {
+        error:
+          "Attachment not found or not ready. Wait for upload to finish and try again.",
+        details: failureCode,
+      } satisfies ChatAPIResponse,
+      { status: 400 },
+    );
+  }
+
   const lastUserContent = [...messages]
     .reverse()
     .find((m) => m.role === "user")?.content;
   const lastUserText = plainTextFromChatContent(lastUserContent)
     .replace(/^\uFEFF/, "")
     .trim();
+
+  if (!lastUserText.trim() && attachmentItems.length === 0) {
+    return NextResponse.json(
+      { error: "Enter a message or attach a file." } satisfies ChatAPIResponse,
+      { status: 400 },
+    );
+  }
+
   const userMessageCount = messages.filter((m) => m.role === "user").length;
   const assistantMessageCount = messages.filter(
     (m) => m.role === "assistant",
   ).length;
   const isFirstConversationTurn =
     userMessageCount === 1 && assistantMessageCount === 0;
-  let initialConversationTitle = buildConversationTitleFromPrompt(lastUserText);
-  if (lastUserText && isFirstConversationTurn) {
+
+  const attachmentChipLine =
+    attachmentItems.length > 0
+      ? `📎 ${attachmentItems.map((a) => a.originalName).join(", ")}`
+      : "";
+  const titleSeed = lastUserText.trim() || attachmentChipLine || "New chat";
+
+  let initialConversationTitle = buildConversationTitleFromPrompt(titleSeed);
+  if (titleSeed && isFirstConversationTurn) {
     const aiTitle = await maybeGenerateConversationTitle({
       model: languageModel,
-      firstUserMessage: lastUserText,
+      firstUserMessage: titleSeed,
     });
     if (aiTitle) initialConversationTitle = aiTitle;
   }
@@ -392,6 +507,13 @@ export async function POST(req: Request) {
 
   systemPrompt += buildAdaptiveResponseStyleSystemBlock(responseStyleIntent);
 
+  const attachmentBlock = attachmentContextForPrompt(attachmentItems, {
+    userQuestion: lastUserText,
+  });
+  if (attachmentBlock) {
+    systemPrompt += `\n\n${attachmentBlock}`;
+  }
+
   const useWebSearchToolLoop = effectiveWebSearch;
 
   const normalizedTurnMessages: ChatMsg[] = (
@@ -407,6 +529,20 @@ export async function POST(req: Request) {
         m.role === "assistant" ||
         m.role === "system",
     );
+
+  for (let i = normalizedTurnMessages.length - 1; i >= 0; i--) {
+    const m = normalizedTurnMessages[i];
+    if (m?.role === "user") {
+      if (!m.content.trim() && attachmentItems.length > 0) {
+        normalizedTurnMessages[i] = {
+          role: "user",
+          content:
+            "Answer using the attached document(s) supplied in your instructions.",
+        };
+      }
+      break;
+    }
+  }
 
   const messagesWithIdentity: ChatMsg[] = [
     { role: "system", content: systemPrompt },
@@ -427,13 +563,33 @@ export async function POST(req: Request) {
     });
     persistenceClient = conversationInit.supabase;
     persistenceConversationId = conversationInit.conversationId;
-    if (persistenceClient && persistenceConversationId && lastUserText) {
-      await persistenceClient.from("messages").insert({
-        conversation_id: persistenceConversationId,
-        user_id: userId,
-        role: "user",
-        content: lastUserText,
-      });
+    const persistedUserContent =
+      lastUserText.trim() ||
+      (attachmentItems.length > 0 ? attachmentChipLine : "");
+    if (persistenceClient && persistenceConversationId && persistedUserContent) {
+      const { data: userRow } = await persistenceClient
+        .from("messages")
+        .insert({
+          conversation_id: persistenceConversationId,
+          user_id: userId,
+          role: "user",
+          content: persistedUserContent,
+          metadata:
+            attachmentIds.length > 0
+              ? { attachmentIds, attachmentSummary: attachmentChipLine }
+              : null,
+        })
+        .select("id")
+        .single();
+      if (userRow?.id && attachmentIds.length > 0) {
+        await linkAttachmentsToUserMessage(
+          persistenceClient,
+          userId,
+          persistenceConversationId,
+          userRow.id,
+          attachmentIds,
+        );
+      }
     }
   } catch (error: unknown) {
     console.warn(

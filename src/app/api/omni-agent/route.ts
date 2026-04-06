@@ -53,6 +53,12 @@ import { maybeGenerateConversationTitle } from "@/lib/chat/title-generator";
 import { createClerkSupabaseClient } from "@/lib/supabase/clerk";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { QueryAnalysis, RepoParsedEvidence, DirectUrlParsedEvidence } from "@/lib/omni/types";
+import {
+  attachmentContextForPrompt,
+  linkAttachmentsToUserMessage,
+  loadReadyAttachmentsForUser,
+  normalizeAttachmentIds,
+} from "@/lib/attachments/db";
 
 const groq = createGroq({ apiKey: process.env.GROQ_API_KEY ?? "" });
 
@@ -1200,7 +1206,10 @@ export async function POST(req: Request) {
     const requestedProvider = req.headers.get("x-omni-provider");
     const requestId =
       req.headers.get("x-omni-request-id") ?? `srv-${Date.now()}`;
-    const body = (await req.json()) as { messages?: IncomingMessage[] };
+    const body = (await req.json()) as {
+      messages?: IncomingMessage[];
+      attachmentIds?: string[];
+    };
     const raw = Array.isArray(body.messages) ? body.messages : [];
     const messages = toModelMessages(raw);
     const lastContent = getLastUserContent(raw);
@@ -1209,11 +1218,61 @@ export async function POST(req: Request) {
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const attachmentIds = normalizeAttachmentIds(body.attachmentIds);
+    const attachmentClerk = await createClerkSupabaseClient();
+    const attachmentItems = await loadReadyAttachmentsForUser(
+      attachmentClerk,
+      userId,
+      attachmentIds,
+    );
+
+    if (attachmentIds.length > 0 && attachmentItems.length === 0) {
+      return Response.json(
+        {
+          error:
+            "Attachment not found or not ready. Wait for upload to finish and try again.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!lastContent.trim() && attachmentItems.length === 0) {
+      return Response.json(
+        { error: "Enter a message or attach a file." },
+        { status: 400 },
+      );
+    }
+
+    const displayUserLine = lastContent.trim()
+      ? lastContent
+      : `📎 ${attachmentItems.map((a) => a.originalName).join(", ")}`;
+
+    const pipelineUserText = lastContent.trim()
+      ? lastContent
+      : "Respond using the attached document(s) in your system instructions.";
+
+    const attachmentBlock = attachmentContextForPrompt(attachmentItems, {
+      userQuestion: displayUserLine,
+    });
+
+    const messagesForModel: Message[] = messages.map((m) => ({ ...m }));
+    for (let i = messagesForModel.length - 1; i >= 0; i--) {
+      const m = messagesForModel[i];
+      if (m?.role === "user") {
+        if (!m.content.trim() && attachmentItems.length > 0) {
+          messagesForModel[i] = { role: "user", content: pipelineUserText };
+        }
+        break;
+      }
+    }
+
     console.log(`[Nexora /api/omni-agent] auth userId=${userId}`);
     const requestedConversationId = req.headers
       .get("x-conversation-id")
       ?.trim();
-    let initialConversationTitle = buildConversationTitleFromPrompt(lastContent);
+    let initialConversationTitle =
+      buildConversationTitleFromPrompt(displayUserLine);
     console.log(
       `[Nexora /api/omni-agent] requestedConversationId=${requestedConversationId ?? "none"}`,
     );
@@ -1231,10 +1290,10 @@ export async function POST(req: Request) {
     const simpleModel = openRouterFactory(
       simpleModelId as Parameters<typeof groq>[0],
     );
-    if (isFirstConversationTurn && lastContent) {
+    if (isFirstConversationTurn && displayUserLine) {
       const aiTitle = await maybeGenerateConversationTitle({
         model: simpleModel,
-        firstUserMessage: lastContent,
+        firstUserMessage: displayUserLine,
       });
       if (aiTitle) initialConversationTitle = aiTitle;
     }
@@ -1244,7 +1303,7 @@ export async function POST(req: Request) {
     console.log("╚══════════════════════════════════════════╝");
     console.log(`  Request ID: ${requestId}`);
     console.log(
-      `  Prompt: "${lastContent.slice(0, 100)}${lastContent.length > 100 ? "..." : ""}"`,
+      `  Prompt: "${pipelineUserText.slice(0, 100)}${pipelineUserText.length > 100 ? "..." : ""}"`,
     );
 
     let persistenceConversationId: string | null = null;
@@ -1269,16 +1328,37 @@ export async function POST(req: Request) {
       console.log(
         `[Nexora /api/omni-agent] conversation init mode=${conversationInit.mode} id=${persistenceConversationId ?? "null"} error=${conversationInit.error ?? "none"}`,
       );
-      if (persistenceConversationId && lastContent) {
-        const userInsert = await persistenceClient.from("messages").insert({
-          conversation_id: persistenceConversationId,
-          user_id: userId,
-          role: "user",
-          content: lastContent,
-        });
+      if (persistenceConversationId && displayUserLine) {
+        const userInsert = await persistenceClient
+          .from("messages")
+          .insert({
+            conversation_id: persistenceConversationId,
+            user_id: userId,
+            role: "user",
+            content: displayUserLine,
+            metadata:
+              attachmentIds.length > 0
+                ? { attachmentIds, attachmentSummary: displayUserLine }
+                : null,
+          })
+          .select("id")
+          .single();
         console.log(
           `[Nexora /api/omni-agent] user message insert ok=${!userInsert.error} error=${userInsert.error?.message ?? "none"}`,
         );
+        if (
+          userInsert.data?.id &&
+          attachmentIds.length > 0 &&
+          persistenceConversationId
+        ) {
+          await linkAttachmentsToUserMessage(
+            persistenceClient,
+            userId,
+            persistenceConversationId,
+            userInsert.data.id,
+            attachmentIds,
+          );
+        }
       }
     } catch (error: unknown) {
       console.warn(
@@ -1289,12 +1369,13 @@ export async function POST(req: Request) {
 
     console.log("  [1/6] 🔍 Analyzing query...");
     const analysisStartMs = Date.now();
-    const heuristic = getHeuristicAnalysis(lastContent);
-    const initialAnalysis = heuristic ?? (await analyzeQuery(lastContent, simpleModel));
+    const heuristic = getHeuristicAnalysis(pipelineUserText);
+    const initialAnalysis =
+      heuristic ?? (await analyzeQuery(pipelineUserText, simpleModel));
     console.log(
       `        ✅ Analysis source: ${heuristic ? "heuristic-fast-path" : "model-classifier"} (${Date.now() - analysisStartMs}ms)`,
     );
-    const queryPlan = buildQueryPlan(lastContent, initialAnalysis);
+    const queryPlan = buildQueryPlan(pipelineUserText, initialAnalysis);
     const analysis = {
       ...initialAnalysis,
       needsWebSearch:
@@ -1363,7 +1444,7 @@ export async function POST(req: Request) {
       console.log(`  [2/6] 🌐 Retrieval strategy: ${queryPlan.retrievalStrategy}`);
       const t2 = Date.now();
       try {
-        const retrieval = await runRetrievalPlan(queryPlan, lastContent);
+        const retrieval = await runRetrievalPlan(queryPlan, pipelineUserText);
         retrievalLog = retrieval.log;
         const quality = assessRetrievalQuality({
           retrievalStrategy: queryPlan.retrievalStrategy,
@@ -1445,7 +1526,7 @@ export async function POST(req: Request) {
 
     let strictPoliticalNews = false;
     if (searchResponse && webSearchUsed) {
-      strictPoliticalNews = detectStrictPoliticalNewsQuery(lastContent);
+      strictPoliticalNews = detectStrictPoliticalNewsQuery(pipelineUserText);
       if (strictPoliticalNews) {
         console.log(
           "        ✅ Strict political news mode will apply (tier-aware cap + stricter prompt)",
@@ -1492,7 +1573,7 @@ export async function POST(req: Request) {
     if (
       queryPlan.retrievalStrategy === "repo_fetch" &&
       parsedRepoEvidence &&
-      isExtractionStyleRepoPrompt(lastContent)
+      isExtractionStyleRepoPrompt(pipelineUserText)
     ) {
       console.log(
         "  ✅ Deterministic repo extraction path selected for extraction-style prompt.",
@@ -1521,7 +1602,7 @@ export async function POST(req: Request) {
     if (
       queryPlan.retrievalStrategy === "direct_url_fetch" &&
       parsedDirectUrlEvidence &&
-      isDirectUrlExtractionStylePrompt(lastContent)
+      isDirectUrlExtractionStylePrompt(pipelineUserText)
     ) {
       if (!parsedDirectUrlEvidence.isMeaningful) {
         const limitation = `I could access the page URL, but I couldn’t recover enough page-explicit content to extract reliable headings/sections.\n\nWhat I tried:\n- direct fetch\n- rendered retry (JS-aware)\n\nIf you paste the relevant sections (or export the page as static text), I can extract headings and summarize only what’s explicitly stated.`;
@@ -1571,7 +1652,8 @@ export async function POST(req: Request) {
     }
 
     const lightweightComparisonPath =
-      queryPlan.taskType === "web_research" && isComparisonStyleQuery(lastContent);
+      queryPlan.taskType === "web_research" &&
+      isComparisonStyleQuery(pipelineUserText);
     const fastSynthesisPath =
       lightweightComparisonPath || queryPlan.taskType === "web_research";
 
@@ -1609,7 +1691,7 @@ export async function POST(req: Request) {
 
     if (
       queryPlan.retrievalStrategy === "direct_url_fetch" &&
-      isStrictPageSummaryPrompt(lastContent) &&
+      isStrictPageSummaryPrompt(pipelineUserText) &&
       parsedDirectUrlEvidence &&
       !parsedDirectUrlEvidence.isMeaningful
     ) {
@@ -1706,7 +1788,7 @@ export async function POST(req: Request) {
     console.log("  [5/6] 📚 Synthesizing research...");
     const t5 = Date.now();
     const basePrompt = getNexoraSystemPrompt();
-    const systemPrompt = buildEnhancedSystemPrompt({
+    let systemPrompt = buildEnhancedSystemPrompt({
       basePrompt,
       analysis,
       retrievalStrategy: queryPlan.retrievalStrategy,
@@ -1720,6 +1802,9 @@ export async function POST(req: Request) {
       repoEvidenceBlock,
       strictPoliticalNewsGrounding: strictPoliticalNews,
     });
+    if (attachmentBlock) {
+      systemPrompt += `\n\n${attachmentBlock}`;
+    }
     const step5Time = Date.now() - t5;
     pipelineSteps.push({
       name: "Research Synthesis",
@@ -1736,7 +1821,7 @@ export async function POST(req: Request) {
 
     const messagesWithSystem: Message[] = [
       { role: "system", content: systemPrompt },
-      ...messages,
+      ...messagesForModel,
     ];
 
     const generationStartMs = Date.now();

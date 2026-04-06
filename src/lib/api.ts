@@ -44,7 +44,11 @@ export async function sendChatMessage(
 export async function sendMultiModelMessages(
   messages: { role: string; content: string }[],
   modelIds: string[],
-  options?: { webSearch?: boolean },
+  options?: {
+    webSearch?: boolean;
+    conversationId?: string;
+    attachmentIds?: string[];
+  },
 ): Promise<{ modelId: string; text: string }[]> {
   const webSearch = options?.webSearch !== false;
   return Promise.all(
@@ -54,6 +58,8 @@ export async function sendMultiModelMessages(
           model: modelId,
           messages,
           webSearch,
+          conversationId: options?.conversationId,
+          attachmentIds: options?.attachmentIds,
         });
         if (data.meta) {
           console.log(

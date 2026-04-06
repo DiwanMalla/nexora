@@ -56,6 +56,13 @@ export function GenericAgent() {
     isChatting,
     handleInputChange,
     handleSubmit,
+    flushMultiRoundLocal,
+    clearComposerAttachment,
+    composerAttachment,
+    openAttachmentPicker,
+    onAttachmentFileChange,
+    attachmentFileInputRef,
+    resolveConversationId,
   } = useChatAgent({ agentType: type, selectedModel });
 
   const agentLabel = getAgentLabel(type);
@@ -70,6 +77,13 @@ export function GenericAgent() {
         messages={messages}
         handleInputChange={handleInputChange}
         handleSubmit={handleSubmit}
+        getConversationId={resolveConversationId}
+        composerAttachment={composerAttachment}
+        flushMultiRoundLocal={flushMultiRoundLocal}
+        clearComposerAttachment={clearComposerAttachment}
+        openAttachmentPicker={openAttachmentPicker}
+        onAttachmentFileChange={onAttachmentFileChange}
+        attachmentFileInputRef={attachmentFileInputRef}
       />
     );
   }
@@ -90,6 +104,11 @@ export function GenericAgent() {
           placeholder="Ask anything, create anything..."
           showModelSelector
           compact
+          composerAttachment={composerAttachment}
+          onOpenAttachmentPicker={openAttachmentPicker}
+          onClearComposerAttachment={clearComposerAttachment}
+          attachmentFileInputRef={attachmentFileInputRef}
+          onAttachmentFileChange={onAttachmentFileChange}
         />
       </div>
     </div>

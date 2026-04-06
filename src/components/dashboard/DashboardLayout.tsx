@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import {
@@ -23,6 +23,7 @@ import {
   Code2,
   MessageSquare,
   Clock,
+  Presentation,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AccountSettingsModal } from "@/components/dashboard/AccountSettingsModal";
@@ -33,12 +34,14 @@ import { AVAILABLE_MODELS, AVAILABLE_AGENTS } from "@/lib/constants";
 const mainNav = [
   { href: "/workspace", label: "Home", icon: Home },
   { href: "/agents?type=aichat", label: "AI Chat", icon: SparklesIcon },
+  { href: "/slides", label: "AI Slide", icon: Presentation },
 ];
 
 import { FOCUS_RING } from "@/lib/styles";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -290,9 +293,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </span>
           )}
           {mainNav.map(({ href, label, icon: Icon }) => {
-            const isActive =
-              pathname === href ||
-              (href.startsWith("/agents") && pathname.startsWith("/agents"));
+            const navType = href.startsWith("/agents")
+              ? new URLSearchParams(href.split("?")[1] ?? "").get("type")
+              : null;
+            const currentType = searchParams.get("type");
+            const isAgentRoute = pathname.startsWith("/agents");
+            const isActive = href.startsWith("/agents")
+              ? isAgentRoute &&
+                (currentType ?? "aichat") === (navType ?? "aichat")
+              : pathname === href;
             return (
               <Link
                 key={href}

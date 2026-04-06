@@ -39,12 +39,18 @@ export async function GET(
 
       const messages = await client
         .from("messages")
-        .select("id,role,content,model,created_at")
+        .select("id,role,content,model,created_at,metadata")
         .eq("conversation_id", conversationId)
         .eq("user_id", userId)
         .order("created_at", { ascending: true });
 
-      return { conversation, messages };
+      const attachments = await client
+        .from("attachments")
+        .select("id,message_id,original_name,mime_type,size_bytes,status")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", userId);
+
+      return { conversation, messages, attachments };
     };
 
     const clerkClient = await createClerkSupabaseClient();
@@ -72,6 +78,15 @@ export async function GET(
         { status: 500 },
       );
     }
+    if (result.attachments.error) {
+      return NextResponse.json(
+        {
+          error: "Unable to load attachments.",
+          details: result.attachments.error.message,
+        },
+        { status: 500 },
+      );
+    }
     if (!result.conversation.data) {
       return NextResponse.json(
         { error: "Conversation not found." },
@@ -83,6 +98,7 @@ export async function GET(
       {
         conversation: result.conversation.data,
         messages: result.messages.data ?? [],
+        attachments: result.attachments.data ?? [],
       },
       { status: 200, headers: { "Cache-Control": "no-store" } },
     );

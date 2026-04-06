@@ -10,9 +10,9 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { Hexagon } from "lucide-react";
+import { Hexagon, Paperclip } from "lucide-react";
 import { cn, stripThinkBlocks } from "@/lib/utils";
-import type { ChatMessage } from "@/types";
+import type { ChatAttachmentRef, ChatMessage } from "@/types";
 import { MessageActions } from "./MessageActions";
 import { remarkOmniReportSections } from "@/lib/markdown/remark-omni-report-sections";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
@@ -47,10 +47,29 @@ interface ChatMessagesProps {
 }
 
 /** Renders a single user message bubble. */
-function UserMessage({ content }: { content: string }) {
+function UserMessage({
+  content,
+  attachments,
+}: {
+  content: string;
+  attachments?: ChatAttachmentRef[];
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="max-w-[80%] rounded-2xl bg-bg-card border border-border px-4 py-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text">
+        {attachments && attachments.length > 0 ? (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachments.map((a) => (
+              <span
+                key={a.id}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-overlay px-2.5 py-1 text-[11px] font-semibold text-text-muted"
+              >
+                <Paperclip className="h-3 w-3 shrink-0 opacity-80" />
+                <span className="max-w-[200px] truncate">{a.originalName}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
         {content}
       </div>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-invert text-surface-invert-text text-[var(--text-xs)] font-semibold shadow-sm">
@@ -373,7 +392,10 @@ export function ChatMessages({
             )}
           >
             {m.role === "user" ? (
-              <UserMessage content={m.content} />
+              <UserMessage
+                content={m.content}
+                attachments={m.attachments}
+              />
             ) : (
               <AssistantMessage
                 content={m.content}

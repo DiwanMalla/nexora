@@ -15,12 +15,18 @@ import {
   Image as ImageIcon,
   Globe,
   Wand2,
+  X,
+  FileText,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FOCUS_RING } from "@/lib/styles";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { ModelDropdown } from "./ModelDropdown";
 import { AGENT_TYPE_LABELS } from "@/types";
+import type { ComposerAttachment } from "@/hooks/use-composer-attachment";
 
 const INPUT_MAX = 8000;
 
@@ -74,6 +80,12 @@ export interface CommandBarProps {
   compact?: boolean;
   showModelSelector?: boolean;
   wide?: boolean;
+  /** v1 single-file attachment */
+  composerAttachment?: ComposerAttachment | null;
+  onOpenAttachmentPicker?: () => void;
+  onClearComposerAttachment?: () => void;
+  attachmentFileInputRef?: React.RefObject<HTMLInputElement | null>;
+  onAttachmentFileChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export function CommandBar({
@@ -84,6 +96,11 @@ export function CommandBar({
   showModelSelector = true,
   compact = false,
   wide = false,
+  composerAttachment = null,
+  onOpenAttachmentPicker,
+  onClearComposerAttachment,
+  attachmentFileInputRef,
+  onAttachmentFileChange,
 }: CommandBarProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [internalValue, setInternalValue] = useState("");
@@ -103,6 +120,18 @@ export function CommandBar({
 
   const value = externalInput !== undefined ? externalInput : internalValue;
   const charCount = value.length;
+
+  const attachmentReady =
+    composerAttachment?.phase === "ready" &&
+    composerAttachment.id !== "pending" &&
+    composerAttachment.id !== "local";
+  const attachmentBusy =
+    composerAttachment?.phase === "uploading" ||
+    composerAttachment?.phase === "processing";
+  const canSend =
+    (value.trim().length > 0 || attachmentReady) &&
+    !attachmentBusy &&
+    charCount <= INPUT_MAX;
 
   const showModelChooser =
     showModelSelector && selectedAgent === "aichat" && !isMultiChat;
@@ -279,6 +308,80 @@ export function CommandBar({
               </span>
             </div>
 
+            <input
+              ref={attachmentFileInputRef}
+              type="file"
+              className="sr-only"
+              accept=".pdf,.txt,.md,.markdown,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={onAttachmentFileChange}
+              aria-hidden
+              tabIndex={-1}
+            />
+
+            {composerAttachment ? (
+              <div className="mx-3 mb-1 flex flex-wrap items-center gap-2">
+                <div
+                  className={cn(
+                    "inline-flex max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold",
+                    composerAttachment.phase === "error"
+                      ? "border-red-500/40 bg-red-500/10 text-red-200"
+                      : "border-[#2b4680]/30 bg-[#00225a]/50 text-[#dee5ff]",
+                  )}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                  <span className="min-w-0 truncate">
+                    {composerAttachment.originalName}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-wide text-[#91aaeb]">
+                    {composerAttachment.phase === "uploading" ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : composerAttachment.phase === "processing" ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Processing…
+                      </>
+                    ) : composerAttachment.phase === "ready" ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                        Ready
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-3 w-3 text-red-300" />
+                        Error
+                      </>
+                    )}
+                  </span>
+                  {composerAttachment.phase === "error" &&
+                  composerAttachment.errorMessage ? (
+                    <span className="sr-only">
+                      {composerAttachment.errorMessage}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onClearComposerAttachment?.()}
+                    className={cn(
+                      "ml-1 rounded-lg p-1 text-[#91aaeb] transition-colors hover:bg-[#002867] hover:text-[#dee5ff]",
+                      FOCUS_RING,
+                    )}
+                    title="Remove attachment"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {composerAttachment.phase === "error" &&
+                composerAttachment.errorMessage ? (
+                  <span className="text-[11px] font-medium text-red-300/90">
+                    {composerAttachment.errorMessage}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
             <textarea
               ref={inputRef}
               rows={compact ? 2 : 3}
@@ -299,8 +402,10 @@ export function CommandBar({
               <div className="flex min-w-0 flex-1 items-center gap-1">
                 <button
                   type="button"
-                  className={cn(iconBtn, FOCUS_RING)}
-                  title="Attach file"
+                  onClick={() => onOpenAttachmentPicker?.()}
+                  disabled={attachmentBusy}
+                  className={cn(iconBtn, FOCUS_RING, attachmentBusy && "opacity-40")}
+                  title="Attach file (PDF, TXT, MD, DOCX — max 10 MB)"
                 >
                   <Paperclip className="h-5 w-5" />
                 </button>
@@ -372,16 +477,16 @@ export function CommandBar({
                 )}
                 <button
                   type="submit"
-                  disabled={!value.trim() || charCount > INPUT_MAX}
+                  disabled={!canSend}
                   className={cn(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all focus:outline-none",
                     FOCUS_RING,
-                    value.trim() && charCount <= INPUT_MAX
+                    canSend
                       ? "bg-gradient-to-br from-[#d2bbff] to-[#5a00c6] shadow-lg shadow-[#d2bbff]/20 hover:brightness-110 active:scale-95"
                       : "cursor-not-allowed opacity-40",
                   )}
                   style={
-                    value.trim() && charCount <= INPUT_MAX
+                    canSend
                       ? { color: C.onPrimary }
                       : { color: C.onSurfaceVariant }
                   }

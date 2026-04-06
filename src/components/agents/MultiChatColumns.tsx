@@ -29,7 +29,13 @@ import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
 import { MessageActions } from "@/components/chat/MessageActions";
-import type { AIModel, ChatMessage, MultiChatRound } from "@/types";
+import type { ComposerAttachment } from "@/hooks/use-composer-attachment";
+import type {
+  AIModel,
+  ChatAttachmentRef,
+  ChatMessage,
+  MultiChatRound,
+} from "@/types";
 
 // ─── Utilities ──────────────────────────────────────────────────
 
@@ -69,6 +75,17 @@ interface MultiChatColumnsProps {
       | React.ChangeEvent<HTMLInputElement>,
   ) => void;
   handleSubmit: (e: React.FormEvent) => Promise<void>;
+  /** Must match the id sent to /api/chat (same as URL thread id). */
+  getConversationId: () => string;
+  composerAttachment: ComposerAttachment | null;
+  flushMultiRoundLocal: (
+    userLine: string,
+    attachmentRefs?: ChatAttachmentRef[],
+  ) => void;
+  clearComposerAttachment: () => void;
+  openAttachmentPicker: () => void;
+  onAttachmentFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  attachmentFileInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 // ─── Component ──────────────────────────────────────────────────
@@ -77,7 +94,14 @@ export function MultiChatColumns({
   input,
   messages,
   handleInputChange,
-  handleSubmit: parentSubmit,
+  handleSubmit: _parentSubmit,
+  getConversationId,
+  composerAttachment,
+  flushMultiRoundLocal,
+  clearComposerAttachment,
+  openAttachmentPicker,
+  onAttachmentFileChange,
+  attachmentFileInputRef,
 }: MultiChatColumnsProps) {
   const { chatWebSearchEnabled, selectedAgent } = useWorkspace();
   const [multiRounds, setMultiRounds] = useState<MultiChatRound[]>([]);
@@ -95,11 +119,18 @@ export function MultiChatColumns({
   const handleMultiSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = input.trim();
-    if (!query) return;
+    const att = composerAttachment;
+    const ids =
+      att?.phase === "ready" &&
+      att.id !== "pending" &&
+      att.id !== "local"
+        ? [att.id]
+        : [];
+    const line = query || (ids.length > 0 ? `📎 ${att!.originalName}` : "");
+    if (!line.trim() && ids.length === 0) return;
 
-    // Create a new round with loading placeholders
     const newRound: MultiChatRound = {
-      user: query,
+      user: line,
       responses: AVAILABLE_MODELS.map((m) => ({
         model: m,
         content: "",
@@ -108,19 +139,36 @@ export function MultiChatColumns({
     };
     setMultiRounds((prev) => [...prev, newRound]);
 
-    // Pass query up so the input gets cleared
-    await parentSubmit(e);
+    const apiMessages = [
+      ...messages,
+      { role: "user" as const, content: line },
+    ].map((msg) => ({ role: msg.role, content: msg.content }));
 
-    // Fire all models in parallel
-    const apiMessages = [...messages, { role: "user", content: query }].map(
-      (msg) => ({ role: msg.role, content: msg.content }),
-    );
+    const activeConversationId = getConversationId();
 
     const results = await sendMultiModelMessages(
       apiMessages,
       AVAILABLE_MODELS.map((m) => m.id),
-      { webSearch: chatWebSearchEnabled },
+      {
+        webSearch: chatWebSearchEnabled,
+        conversationId: activeConversationId,
+        attachmentIds: ids.length > 0 ? ids : undefined,
+      },
     );
+
+    const attachmentRefs: ChatAttachmentRef[] | undefined =
+      ids.length > 0 && att?.phase === "ready"
+        ? [
+            {
+              id: att.id,
+              originalName: att.originalName,
+              mimeType: att.mimeType,
+              sizeBytes: att.sizeBytes,
+            },
+          ]
+        : undefined;
+    flushMultiRoundLocal(line, attachmentRefs);
+    clearComposerAttachment();
 
     setMultiRounds((prev) => {
       const next = [...prev];
@@ -235,6 +283,11 @@ export function MultiChatColumns({
                 placeholder="Ask me anything..."
                 showModelSelector
                 compact
+                composerAttachment={composerAttachment}
+                onOpenAttachmentPicker={openAttachmentPicker}
+                onClearComposerAttachment={clearComposerAttachment}
+                attachmentFileInputRef={attachmentFileInputRef}
+                onAttachmentFileChange={onAttachmentFileChange}
               />
             </div>
           </div>
@@ -257,6 +310,11 @@ export function MultiChatColumns({
                 showModelSelector
                 compact
                 wide
+                composerAttachment={composerAttachment}
+                onOpenAttachmentPicker={openAttachmentPicker}
+                onClearComposerAttachment={clearComposerAttachment}
+                attachmentFileInputRef={attachmentFileInputRef}
+                onAttachmentFileChange={onAttachmentFileChange}
               />
             </div>
           </div>
