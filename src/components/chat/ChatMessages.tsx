@@ -31,6 +31,27 @@ export interface ReplyImage {
 
 export type ReplyImageState = "idle" | "loading" | "done" | "error";
 
+function normalizeAssistantMarkdownForDisplay(input: string): string {
+  let text = input.replace(/\r\n/g, "\n").trim();
+  if (!text) return text;
+
+  // Ensure heading markers start on clean lines.
+  text = text.replace(/([^\n])\s(#{2,6}\s)/g, "$1\n\n$2");
+
+  // Convert inline bullet markers (" ... - item") into real list lines.
+  text = text.replace(/([.:])\s+-\s+/g, "$1\n- ");
+  text = text.replace(/([a-z0-9\)])\s+-\s+(?=[A-Z])/g, "$1\n- ");
+
+  // Normalize compact list chains: "- A - B - C" -> multiline list.
+  text = text.replace(/\n-\s+([^\n]+?)\s+-\s+(?=[A-Z])/g, (_m, first) => {
+    return `\n- ${first}\n- `;
+  });
+
+  // Keep paragraphs/lists readable.
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text;
+}
+
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -161,7 +182,6 @@ function AssistantMessage({
   hideActions = false,
   reportMode = false,
   qualityPanel = false,
-  renderMode = "markdown",
 }: {
   content: string;
   model?: string;
@@ -171,9 +191,10 @@ function AssistantMessage({
   reportMode?: boolean;
   /** Subtle bordered panel for structured / long AI Chat replies (Omni-like readability). */
   qualityPanel?: boolean;
-  renderMode?: "markdown" | "plain";
 }) {
-  const visibleContent = stripThinkBlocks(content);
+  const visibleContent = normalizeAssistantMarkdownForDisplay(
+    stripThinkBlocks(content),
+  );
   const hasVisibleContent = Boolean(visibleContent.trim());
 
   const containerBaseClass = reportMode
@@ -181,7 +202,6 @@ function AssistantMessage({
     : qualityPanel
       ? "typography-prose ai-chat-answer-panel max-w-none pl-11"
       : "typography-prose max-w-none pl-11";
-  const plainContainerClass = `${containerBaseClass} whitespace-pre-wrap`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,30 +220,27 @@ function AssistantMessage({
       {topContent}
 
       {/* Markdown body (think blocks stripped) */}
-      {hasVisibleContent &&
-        (renderMode === "plain" ? (
-          <div className={plainContainerClass}>{visibleContent}</div>
-        ) : (
-          <div className={containerBaseClass}>
-            <ReactMarkdown
-              remarkPlugins={
-                reportMode
-                  ? [remarkGfm, remarkMath, remarkOmniReportSections()]
-                  : [remarkGfm, remarkMath]
-              }
-              rehypePlugins={[rehypeKatex]}
-              components={
-                reportMode
-                  ? ({
-                      omniSection: OmniSection,
-                    } as any)
-                  : undefined
-              }
-            >
-              {visibleContent}
-            </ReactMarkdown>
-          </div>
-        ))}
+      {hasVisibleContent && (
+        <div className={containerBaseClass}>
+          <ReactMarkdown
+            remarkPlugins={
+              reportMode
+                ? [remarkGfm, remarkMath, remarkOmniReportSections()]
+                : [remarkGfm, remarkMath]
+            }
+            rehypePlugins={[rehypeKatex]}
+            components={
+              reportMode
+                ? ({
+                    omniSection: OmniSection,
+                  } as any)
+                : undefined
+            }
+          >
+            {visibleContent}
+          </ReactMarkdown>
+        </div>
+      )}
 
       {/* Actions + model badge */}
       {hasVisibleContent && !hideActions && (
@@ -445,10 +462,6 @@ export function ChatMessages({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
       {messages.map((m, idx) => {
         const isLast = idx === messages.length - 1;
-        const renderMode: "markdown" | "plain" =
-          agentId === "omni" && m.role === "assistant" && isLast && isLoading
-            ? "plain"
-            : "markdown";
         const reportMode =
           agentId === "omni" &&
           /(^|\n)##\s+(✅\s*Verified in retrieved artifacts|🛠️\s*Documented|⚠️\s*Uncertain|Top 3 beta-readiness priorities|##\s*Summary)/m.test(
@@ -478,7 +491,6 @@ export function ChatMessages({
                 hideActions={isLast && isLoading}
                 reportMode={reportMode}
                 qualityPanel={qualityPanel}
-                renderMode={renderMode}
                 topContent={
                   isLast ? (
                     <>

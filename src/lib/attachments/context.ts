@@ -51,6 +51,8 @@ function attachmentInstructionBlock(structuredExplain: boolean): string {
     "",
     "**Voice**: Explain **directly** (e.g. “The document asks you to…”, “Section 2 covers…”). Avoid weak filler (“it seems like”, “might be about”, “based on the structure”) unless you immediately anchor it to a specific line from the extract.",
     "",
+    "**Temporal caution**: Do not add relative-time commentary like “this date is in the future/past” unless the user explicitly asks for a date comparison and provides the reference date. If a document has a date, report it neutrally from the text.",
+    "",
   ];
 
   if (structuredExplain) {

@@ -1,6 +1,8 @@
 "use client";
 
 import { X, FileText, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { AttachmentNote } from "@/types";
 
 type Props = {
@@ -71,7 +73,11 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
               AI Summary
             </div>
             <div className="mt-1 rounded-lg border border-border bg-bg-card p-3 text-text">
-              {note.summary}
+              <div className="typography-prose max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {note.summary}
+                </ReactMarkdown>
+              </div>
             </div>
           </section>
 
@@ -100,7 +106,11 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
                     className="rounded-lg border border-border bg-bg-card p-2.5"
                   >
                     <div className="text-xs font-semibold text-text">{s.heading}</div>
-                    <div className="mt-1 text-xs text-text-muted">{s.content}</div>
+                    <div className="mt-1 typography-prose max-w-none text-xs text-text-muted">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {s.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -147,7 +157,11 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
                 Raw Extract Preview (truncated)
               </div>
               <div className="mt-1 rounded-lg border border-border bg-bg-card p-2.5 text-xs text-text-muted">
-                {note.extractedTextPreview}
+                <div className="typography-prose max-w-none whitespace-pre-wrap">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {note.extractedTextPreview}
+                  </ReactMarkdown>
+                </div>
               </div>
             </section>
           ) : null}
