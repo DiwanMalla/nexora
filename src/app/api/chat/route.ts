@@ -99,12 +99,28 @@ async function getOrCreateConversation(params: {
   if (conversationId) {
     const existing = await supabase
       .from("conversations")
-      .select("id")
+      .select("id,title")
       .eq("id", conversationId)
       .eq("user_id", userId)
       .maybeSingle();
 
     if (existing.data?.id) {
+      const currentTitle = existing.data.title?.trim().toLowerCase() ?? "";
+      if (
+        currentTitle === "new conversation" ||
+        currentTitle === "untitled conversation" ||
+        currentTitle === "new chat"
+      ) {
+        await supabase
+          .from("conversations")
+          .update({
+            title: initialTitle,
+            model: modelId,
+            agent_type: agentType ?? null,
+          })
+          .eq("id", existing.data.id)
+          .eq("user_id", userId);
+      }
       return { supabase, conversationId: existing.data.id, created: false };
     }
 

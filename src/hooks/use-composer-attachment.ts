@@ -6,6 +6,7 @@ import {
   ATTACHMENT_MAX_BYTES,
   inferMimeFromName,
 } from "@/lib/attachments/constants";
+import type { AttachmentNote } from "@/types";
 
 export type ComposerAttachment = {
   id: string;
@@ -14,6 +15,7 @@ export type ComposerAttachment = {
   sizeBytes: number;
   phase: "uploading" | "processing" | "ready" | "error";
   errorMessage?: string;
+  note?: AttachmentNote;
 };
 
 export type UseComposerAttachmentOptions = {
@@ -115,6 +117,7 @@ export function useComposerAttachment(
             sizeBytes: number;
             status: string;
             error?: string;
+            note?: AttachmentNote;
           };
           error?: string;
         };
@@ -164,6 +167,7 @@ export function useComposerAttachment(
           mimeType: att.mimeType,
           sizeBytes: att.sizeBytes,
           phase: "ready",
+          note: att.note,
         });
       } catch {
         setAttachment((prev) =>

@@ -301,6 +301,18 @@ const openrouter: AIProvider = {
       capability: ["reasoning"],
     },
     {
+      name: "GPT-5.4 Nano",
+      apiId: "openai/gpt-5.4-nano",
+      keyAdvantage: "Ultra-fast lightweight OpenAI model for quick chat responses.",
+      capability: ["speed", "reasoning"],
+    },
+    {
+      name: "Gemini 3 Flash Preview",
+      apiId: "google/gemini-3-flash-preview",
+      keyAdvantage: "Fast Gemini preview model for low-latency chat and quick drafts.",
+      capability: ["speed", "reasoning"],
+    },
+    {
       name: "DeepSeek Chat V3 (Backup)",
       apiId: "deepseek/deepseek-chat-v3-0324",
       keyAdvantage: "Backup reasoning model for degraded-mode and timeout fallback.",

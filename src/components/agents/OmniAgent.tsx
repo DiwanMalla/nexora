@@ -16,10 +16,12 @@ import {
 } from "@/components/chat/ChatMessages";
 import { ConversationTitleBar } from "@/components/chat/ConversationTitleBar";
 import { CommandBar } from "@/components/chat/CommandBar";
+import { AttachmentNotesPanel } from "@/components/chat/AttachmentNotesPanel";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { useComposerAttachment } from "@/hooks/use-composer-attachment";
-import type { ChatAttachmentRef, ChatMessage } from "@/types";
+import type { AttachmentNote, ChatAttachmentRef, ChatMessage } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
+import { parseAttachmentNote } from "@/lib/attachments/note";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -145,6 +147,8 @@ function uiMessagesToChatMessages(
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export function OmniAgent() {
+  const [selectedAttachmentNote, setSelectedAttachmentNote] =
+    useState<AttachmentNote | null>(null);
   const { selectedAgent, setSelectedAgent, omniProvider } = useWorkspace();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -422,6 +426,7 @@ export function OmniAgent() {
             mime_type: string;
             size_bytes: number;
             status: string;
+            metadata?: unknown;
           }>;
         };
         if (!active || !res.ok) return;
@@ -434,6 +439,14 @@ export function OmniAgent() {
             originalName: a.original_name,
             mimeType: a.mime_type,
             sizeBytes: a.size_bytes,
+            note: parseAttachmentNote(
+              a.metadata &&
+                typeof a.metadata === "object" &&
+                a.metadata !== null &&
+                "note" in a.metadata
+                ? (a.metadata as Record<string, unknown>).note
+                : undefined,
+            ),
           });
           attByMsg.set(a.message_id, list);
         }
@@ -719,6 +732,7 @@ export function OmniAgent() {
               replyImageQuery={latestQuery}
               replyImageState={imageSearchState}
               replyImageError={imageSearchError}
+              onOpenAttachmentNote={setSelectedAttachmentNote}
             />
           </div>
           <div
@@ -767,6 +781,10 @@ export function OmniAgent() {
           </div>
         </div>
       )}
+      <AttachmentNotesPanel
+        note={selectedAttachmentNote}
+        onClose={() => setSelectedAttachmentNote(null)}
+      />
     </div>
   );
 }

@@ -46,7 +46,7 @@ export async function GET(
 
       const attachments = await client
         .from("attachments")
-        .select("id,message_id,original_name,mime_type,size_bytes,status")
+        .select("id,message_id,original_name,mime_type,size_bytes,status,metadata")
         .eq("conversation_id", conversationId)
         .eq("user_id", userId);
 

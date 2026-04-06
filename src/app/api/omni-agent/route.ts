@@ -141,10 +141,36 @@ async function getOrCreateConversation(params: {
   ) =>
     client
       .from("conversations")
-      .select("id")
+      .select("id,title")
       .eq("id", id)
       .eq("user_id", userId)
       .maybeSingle();
+
+  const maybeUpgradePlaceholderTitle = async (
+    id: string,
+    currentTitle: string | null | undefined,
+    client:
+      | Awaited<ReturnType<typeof createClerkSupabaseClient>>
+      | ReturnType<typeof createServiceRoleClient>,
+  ) => {
+    const normalized = currentTitle?.trim().toLowerCase() ?? "";
+    if (
+      normalized !== "new conversation" &&
+      normalized !== "untitled conversation" &&
+      normalized !== "new chat"
+    ) {
+      return;
+    }
+    await client
+      .from("conversations")
+      .update({
+        title: initialTitle,
+        model: modelId,
+        agent_type: agentType ?? null,
+      })
+      .eq("id", id)
+      .eq("user_id", userId);
+  };
 
   const insertConversation = async (
     client:
@@ -189,6 +215,11 @@ async function getOrCreateConversation(params: {
       );
       const fallbackExisting = await findExisting(conversationId, serviceClient);
       if (fallbackExisting.data?.id) {
+        await maybeUpgradePlaceholderTitle(
+          fallbackExisting.data.id,
+          fallbackExisting.data.title,
+          serviceClient,
+        );
         return {
           supabase: serviceClient,
           conversationId: fallbackExisting.data.id,
@@ -206,6 +237,11 @@ async function getOrCreateConversation(params: {
       };
     }
     if (existing.data?.id) {
+      await maybeUpgradePlaceholderTitle(
+        existing.data.id,
+        existing.data.title,
+        clerkClient,
+      );
       return {
         supabase: clerkClient,
         conversationId: existing.data.id,

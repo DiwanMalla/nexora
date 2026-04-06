@@ -8,11 +8,29 @@
 // ─── Chat ──────────────────────────────────────────────────────────────────
 
 /** File the user attached to a message (v1). */
+export type AttachmentNote = {
+  id: string;
+  attachmentId: string;
+  fileName: string;
+  fileType: string;
+  title?: string;
+  summary: string;
+  sections: Array<{
+    heading: string;
+    content: string;
+  }>;
+  extractedTextPreview?: string;
+  uncertainties?: string[];
+  createdAt: string;
+};
+
+/** File the user attached to a message (v1). */
 export type ChatAttachmentRef = {
   id: string;
   originalName: string;
   mimeType?: string;
   sizeBytes?: number;
+  note?: AttachmentNote;
 };
 
 /** A single message in a chat conversation. */

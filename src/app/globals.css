@@ -310,8 +310,8 @@ body {
 /* ─── AI Chat polished answers (Omni-like scanability, lighter chrome) ─ */
 .ai-chat-answer-panel {
   position: relative;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  background: transparent;
   border-radius: 1rem;
   padding: 1rem 1.15rem 1rem;
 }

@@ -10,9 +10,9 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { Hexagon, Paperclip } from "lucide-react";
+import { Hexagon, Paperclip, FileSearch, Eye } from "lucide-react";
 import { cn, stripThinkBlocks } from "@/lib/utils";
-import type { ChatAttachmentRef, ChatMessage } from "@/types";
+import type { AttachmentNote, ChatAttachmentRef, ChatMessage } from "@/types";
 import { MessageActions } from "./MessageActions";
 import { remarkOmniReportSections } from "@/lib/markdown/remark-omni-report-sections";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
@@ -44,6 +44,7 @@ interface ChatMessagesProps {
   replyImageQuery?: string | null;
   replyImageState?: ReplyImageState;
   replyImageError?: string | null;
+  onOpenAttachmentNote?: (note: AttachmentNote) => void;
 }
 
 /** Renders a single user message bubble. */
@@ -75,6 +76,78 @@ function UserMessage({
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-invert text-surface-invert-text text-[var(--text-xs)] font-semibold shadow-sm">
         DM
       </div>
+    </div>
+  );
+}
+
+function AttachmentToolCard({
+  showProgress,
+  note,
+  onOpenAttachmentNote,
+}: {
+  showProgress: boolean;
+  note?: AttachmentNote;
+  onOpenAttachmentNote?: (note: AttachmentNote) => void;
+}) {
+  const progressRows = [
+    "Using Tool | ReadAttachment",
+    "Using Tool | ExtractTitle",
+    "Using Tool | ParseSections",
+    "Using Tool | WriteNotes",
+  ];
+  const doneRows = [
+    "Using Tool | ReadAttachment",
+    "Using Tool | ExtractTitle",
+    "Using Tool | ParseSections",
+    "Using Tool | WriteNotes",
+  ];
+
+  return (
+    <div className="ml-11 rounded-lg border border-border/80 bg-surface-overlay/50 px-3 py-2 text-[11px]">
+      <div className="mb-2 flex items-center gap-1.5 font-semibold text-text">
+        <FileSearch className="h-3.5 w-3.5" />
+        Attachment Reader
+      </div>
+      {showProgress ? (
+        <div className="space-y-1 text-text-muted">
+          {progressRows.map((row) => (
+            <div key={row} className="flex items-center justify-between gap-2">
+              <span>{row}</span>
+              <span className="text-[10px] uppercase tracking-wide text-text-dim">
+                Running
+              </span>
+            </div>
+          ))}
+          <div className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-text-dim">
+            Exit Code: pending
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1 text-text-muted">
+          {doneRows.map((row) => (
+            <div key={row} className="flex items-center justify-between gap-2">
+              <span>{row}</span>
+              {note ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded border border-border bg-bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text"
+                  onClick={() => onOpenAttachmentNote?.(note)}
+                >
+                  <Eye className="h-3 w-3" />
+                  View
+                </button>
+              ) : (
+                <span className="text-[10px] uppercase tracking-wide text-text-dim">
+                  Done
+                </span>
+              )}
+            </div>
+          ))}
+          <div className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-text-dim">
+            Exit Code: 0
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,6 +429,7 @@ export function ChatMessages({
   replyImageState = "idle",
   replyImageError = null,
   agentId,
+  onOpenAttachmentNote,
 }: ChatMessagesProps) {
   if (messages.length === 0) return null;
 
@@ -408,6 +482,14 @@ export function ChatMessages({
                 topContent={
                   isLast ? (
                     <>
+                      {idx > 0 && messages[idx - 1]?.role === "user" &&
+                      messages[idx - 1]?.attachments?.length ? (
+                        <AttachmentToolCard
+                          showProgress={isLoading}
+                          note={messages[idx - 1]?.attachments?.find((a) => a.note)?.note}
+                          onOpenAttachmentNote={onOpenAttachmentNote}
+                        />
+                      ) : null}
                       {shouldShowTypingIndicator ? (
                         <TypingIndicator
                           hint={loadingHint}
@@ -431,11 +513,20 @@ export function ChatMessages({
       })}
 
       {shouldShowTypingIndicator && lastMessage?.role !== "assistant" && (
-        <AssistantTypingMessage
-          hint={loadingHint}
-          steps={progressSteps}
-          activeLabel={activeStepLabel}
-        />
+        <div className="flex w-full justify-start flex-col animate-in fade-in slide-in-from-bottom-2 duration-700">
+          {lastMessage?.attachments?.length ? (
+            <AttachmentToolCard
+              showProgress
+              note={lastMessage.attachments.find((a) => a.note)?.note}
+              onOpenAttachmentNote={onOpenAttachmentNote}
+            />
+          ) : null}
+          <AssistantTypingMessage
+            hint={loadingHint}
+            steps={progressSteps}
+            activeLabel={activeStepLabel}
+          />
+        </div>
       )}
     </div>
   );

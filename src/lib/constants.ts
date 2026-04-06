@@ -22,6 +22,16 @@ export const AVAILABLE_MODELS: AIModel[] = [
     provider: "OpenRouter",
   },
   {
+    id: "openai/gpt-5.4-nano",
+    name: "GPT-5.4 Nano (OpenRouter)",
+    provider: "OpenRouter",
+  },
+  {
+    id: "google/gemini-3-flash-preview",
+    name: "Gemini 3 Flash Preview (OpenRouter)",
+    provider: "OpenRouter",
+  },
+  {
     id: "deepseek/deepseek-chat-v3-0324",
     name: "DeepSeek Chat V3 (Backup) (OpenRouter)",
     provider: "OpenRouter",

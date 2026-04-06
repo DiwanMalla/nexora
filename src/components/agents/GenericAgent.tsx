@@ -16,15 +16,16 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 import { ConversationTitleBar } from "@/components/chat/ConversationTitleBar";
 import { CommandBar } from "@/components/chat/CommandBar";
+import { AttachmentNotesPanel } from "@/components/chat/AttachmentNotesPanel";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { useChatAgent } from "@/hooks/use-chat-agent";
 import { MultiChatColumns } from "./MultiChatColumns";
-import { AGENT_TYPE_LABELS } from "@/types";
+import { AGENT_TYPE_LABELS, type AttachmentNote } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
 
 /** Returns a human-readable label for the given agent type. */
@@ -33,6 +34,8 @@ function getAgentLabel(type: string | null): string {
 }
 
 export function GenericAgent() {
+  const [selectedAttachmentNote, setSelectedAttachmentNote] =
+    useState<AttachmentNote | null>(null);
   const searchParams = useSearchParams();
   const type = searchParams.get("type") || "aichat";
   const conversationId = searchParams.get("id");
@@ -130,6 +133,7 @@ export function GenericAgent() {
             isLoading={isLoading}
             agentId={type || "aichat"}
             lastMessageRef={lastMessageRef}
+            onOpenAttachmentNote={setSelectedAttachmentNote}
           />
         </div>
       ) : (
@@ -146,6 +150,10 @@ export function GenericAgent() {
         </div>
       )}
       {commandBarFooter}
+      <AttachmentNotesPanel
+        note={selectedAttachmentNote}
+        onClose={() => setSelectedAttachmentNote(null)}
+      />
     </div>
   );
 }

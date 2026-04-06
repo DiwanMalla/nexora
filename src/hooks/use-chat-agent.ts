@@ -26,6 +26,7 @@ import {
   useComposerAttachment,
   type ComposerAttachment,
 } from "@/hooks/use-composer-attachment";
+import { parseAttachmentNote } from "@/lib/attachments/note";
 
 export interface UseChatAgentOptions {
   /** The agent `type` value for URL params (e.g. "omni", "aichat"). */
@@ -157,6 +158,7 @@ export function useChatAgent({
             mime_type: string;
             size_bytes: number;
             status: string;
+            metadata?: unknown;
           }>;
         };
         if (!active) return;
@@ -170,6 +172,14 @@ export function useChatAgent({
             originalName: a.original_name,
             mimeType: a.mime_type,
             sizeBytes: a.size_bytes,
+            note: parseAttachmentNote(
+              a.metadata &&
+                typeof a.metadata === "object" &&
+                a.metadata !== null &&
+                "note" in a.metadata
+                ? (a.metadata as Record<string, unknown>).note
+                : undefined,
+            ),
           });
           attByMsg.set(a.message_id, list);
         }
@@ -247,6 +257,7 @@ export function useChatAgent({
                 originalName: att!.originalName,
                 mimeType: att!.mimeType,
                 sizeBytes: att!.sizeBytes,
+                note: att!.note,
               },
             ]
           : undefined;

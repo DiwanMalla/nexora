@@ -13,6 +13,10 @@ import {
   resolveAttachmentMime,
 } from "@/lib/attachments/constants";
 import { extractTextFromFile } from "@/lib/attachments/extract-text";
+import {
+  buildAttachmentNote,
+  toAttachmentNoteJson,
+} from "@/lib/attachments/note";
 
 export const runtime = "nodejs";
 
@@ -214,11 +218,22 @@ export async function POST(req: Request) {
     );
   }
 
+  const note = buildAttachmentNote({
+    attachmentId,
+    fileName: file.name,
+    fileType: mimeResolved,
+    extractedText: extracted.text,
+  });
+
   const { error: finalErr } = await supabase
     .from("attachments")
     .update({
       status: "ready",
       extracted_text: extracted.text,
+      metadata: {
+        uploaded_via: "api/v1",
+        note: toAttachmentNoteJson(note),
+      },
     })
     .eq("id", attachmentId)
     .eq("user_id", userId);
@@ -241,6 +256,7 @@ export async function POST(req: Request) {
         mimeType: mimeResolved,
         sizeBytes: file.size,
         status: "ready" as const,
+        note,
       },
     },
     { status: 200 },
