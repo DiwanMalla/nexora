@@ -18,10 +18,15 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { randomUUID } from "@/lib/utils";
 import { getCompetingModelIds } from "@/lib/settings";
-import { sendChatMessage } from "@/lib/api";
+import { sendChatMessage, sendChatMessageStream } from "@/lib/api";
+import { detectBroadCurrentNewsOverviewIntent } from "@/lib/chat/current-fact";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { AI_CHAT_CONSENSUS_ENABLED } from "@/lib/constants";
-import type { ChatAttachmentRef, ChatMessage } from "@/types";
+import type {
+  ChatAttachmentRef,
+  ChatMessage,
+  LiveNewsStreamProgressStage,
+} from "@/types";
 import {
   useComposerAttachment,
   type ComposerAttachment,
@@ -63,6 +68,8 @@ export interface UseChatAgentReturn {
   attachmentFileInputRef: React.RefObject<HTMLInputElement | null>;
   /** Stable thread id aligned with URL (allocates UUID before first API if needed). */
   resolveConversationId: () => string;
+  /** Server-driven live-news pipeline stage (NDJSON stream), or null. */
+  liveNewsStreamStage: LiveNewsStreamProgressStage | null;
 }
 
 export function useChatAgent({
@@ -79,6 +86,8 @@ export function useChatAgent({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [liveNewsStreamStage, setLiveNewsStreamStage] =
+    useState<LiveNewsStreamProgressStage | null>(null);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
@@ -276,6 +285,7 @@ export function useChatAgent({
       const activeConversationId = resolveConversationId();
 
       setIsLoading(true);
+      setLiveNewsStreamStage(null);
       try {
         const enabledModels = AI_CHAT_CONSENSUS_ENABLED
           ? getCompetingModelIds()
@@ -301,7 +311,17 @@ export function useChatAgent({
         if (enabledModels.length > 0) body.enabledModels = enabledModels;
         if (attachmentIds.length > 0) body.attachmentIds = attachmentIds;
 
-        const payload = await sendChatMessage(body);
+        const useLiveNewsStream =
+          chatWebSearchEnabled &&
+          enabledModels.length === 0 &&
+          detectBroadCurrentNewsOverviewIntent(userContent);
+
+        const payload = useLiveNewsStream
+          ? await (async () => {
+              setLiveNewsStreamStage("searching");
+              return sendChatMessageStream(body, setLiveNewsStreamStage);
+            })()
+          : await sendChatMessage(body);
 
         if (payload.meta) {
           const {
@@ -328,13 +348,29 @@ export function useChatAgent({
           console.log(`[Nexora chat] Response from ${payload.model}`);
         }
 
+        const meta = payload.meta;
+        const assistantMeta =
+          meta &&
+          (meta.responseStyleIntent === "live_news" ||
+            meta.liveNewsGrounded)
+            ? {
+                responseStyleIntent: meta.responseStyleIntent,
+                webSearchCalls: meta.webSearchCalls,
+                webSearchQueries: meta.webSearchQueries,
+                liveNewsGrounded: meta.liveNewsGrounded,
+                liveNewsStructured: meta.liveNewsStructured,
+                liveNewsPrefetchQueries: meta.liveNewsPrefetchQueries,
+              }
+            : undefined;
+
         setMessages((prev) => [
           ...prev,
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
             content: payload.text?.trim() || "I couldn't generate a response.",
-            model: payload.model ?? payload.meta?.modelId ?? selectedModel,
+            model: payload.model ?? meta?.modelId ?? selectedModel,
+            assistantMeta,
           },
         ]);
         if (attachmentIds.length > 0) {
@@ -353,6 +389,7 @@ export function useChatAgent({
         ]);
       } finally {
         setIsLoading(false);
+        setLiveNewsStreamStage(null);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -431,5 +468,6 @@ export function useChatAgent({
     onAttachmentFileChange,
     attachmentFileInputRef,
     resolveConversationId,
+    liveNewsStreamStage,
   };
 }

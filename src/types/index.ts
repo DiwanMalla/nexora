@@ -7,6 +7,44 @@
 
 // ─── Chat ──────────────────────────────────────────────────────────────────
 
+/** Parsed from model output for live-news turns (claim-level citations). */
+export type LiveNewsCitation = {
+  title: string;
+  url: string;
+  domain?: string;
+  publishedAt?: string;
+};
+
+export type LiveNewsVerificationLevel =
+  | "multi_source"
+  | "single_source"
+  | "conflicting"
+  | "limited_coverage"
+  | "developing";
+
+export type LiveNewsStructuredHeadline = {
+  topicLabel: string;
+  claim: string;
+  /** One sentence: stakes / who cares (global snapshot). */
+  whyItMatters?: string;
+  citations: LiveNewsCitation[];
+  verificationLevel: LiveNewsVerificationLevel;
+  confidenceLabel?: string;
+  independentDomainCount?: number;
+};
+
+export type LiveNewsStructuredPayload = {
+  headlines: LiveNewsStructuredHeadline[];
+  dominantDomainShare?: number;
+};
+
+/** NDJSON stream progress for live-news requests (`stream: true`). */
+export type LiveNewsStreamProgressStage =
+  | "searching"
+  | "fetching"
+  | "clustering"
+  | "summarizing";
+
 /** File the user attached to a message (v1). */
 export type AttachmentNote = {
   id: string;
@@ -31,16 +69,6 @@ export type ChatAttachmentRef = {
   mimeType?: string;
   sizeBytes?: number;
   note?: AttachmentNote;
-};
-
-/** A single message in a chat conversation. */
-export type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  /** The model ID that produced this response (assistant messages only). */
-  model?: string;
-  attachments?: ChatAttachmentRef[];
 };
 
 /** Debug / UX metadata returned with chat completions (also logged server-side). */
@@ -77,6 +105,35 @@ export type ChatResponseMeta = {
     | "coding"
     | "comparison"
     | "general_chat";
+  /** Live-news grounded mode: structured briefing + forced web retrieval. */
+  liveNewsGrounded?: boolean;
+  /** Claim-level citations when the model emitted valid `nexora-live-news-json`. */
+  liveNewsStructured?: LiveNewsStructuredPayload;
+  /** Queries used in server-side live-news prefetch (before the model tool loop). */
+  liveNewsPrefetchQueries?: string[];
+};
+
+/** Subset of chat response meta stored on assistant bubbles for UI (e.g. research summary). */
+export type ChatAssistantMeta = Pick<
+  ChatResponseMeta,
+  | "responseStyleIntent"
+  | "webSearchCalls"
+  | "webSearchQueries"
+  | "liveNewsGrounded"
+  | "liveNewsStructured"
+  | "liveNewsPrefetchQueries"
+>;
+
+/** A single message in a chat conversation. */
+export type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  /** The model ID that produced this response (assistant messages only). */
+  model?: string;
+  attachments?: ChatAttachmentRef[];
+  /** Last /api/chat meta slice for transparency UI (assistant only). */
+  assistantMeta?: ChatAssistantMeta;
 };
 
 /** Shape of a successful response from the `/api/chat` endpoint. */
@@ -101,6 +158,11 @@ export type ChatAPIRequest = {
   agentType?: string;
   /** Ready attachment row ids (v1: at most one). Server injects extracted text as context. */
   attachmentIds?: string[];
+  /**
+   * When true with live-news intent, response is NDJSON: progress lines then `done`.
+   * See `sendChatMessageStream` in `@/lib/api`.
+   */
+  stream?: boolean;
 };
 
 // ─── AI Models & Agents ─────────────────────────────────────────────────────

@@ -221,7 +221,7 @@ export function detectBroadCurrentNewsOverviewIntent(raw: string): boolean {
   }
 
   const broad =
-    /\b(what'?s?\s+happening|what\s+is\s+happening|what\s+is\s+going\s+on|going\s+on\s+in|situation\s+in|current\s+(?:events?|situation|affairs)|headlines?\s+(?:in|from|about)|latest\s+(?:news|updates?)|recent\s+(?:news|updates?)|breaking\s+news|news\s+(?:in|from|about|on)|tell\s+me\s+(?:what'?s?\s+)?(?:happening|going\s+on)|anything\s+new\s+(?:in|about|on))\b/.test(
+    /\b(what'?s?\s+happening|what\s+is\s+happening|what\s+is\s+going\s+on|going\s+on\s+in|situation\s+in|current\s+(?:events?|situation|affairs)|headlines?\s+(?:in|from|about)|latest\s+(?:news|updates?)|recent\s+(?:news|updates?)|breaking\s+news|news\s+(?:in|from|about|on|of)|today'?s?\s+news|tell\s+me\s+(?:what'?s?\s+)?(?:happening|going\s+on)|anything\s+new\s+(?:in|about|on))\b/.test(
       t,
     );
   const recency =
@@ -237,6 +237,64 @@ export function detectBroadCurrentNewsOverviewIntent(raw: string): boolean {
   if (recency && newsy) return true;
   return false;
 }
+
+/**
+ * Stricter instructions when the user wants a **live news / situation snapshot** (not a single fact).
+ * Pairs with `responseStyleIntent === "live_news"` and forced web retrieval.
+ */
+export const CURRENT_NEWS_GROUNDED_SYSTEM_RULES = `
+
+## Live news roundup mode (mandatory)
+You are answering a **current-events / headlines** style question. Behave like a **live answer engine**, not a generic essay.
+
+### Retrieval & verification
+1. Call **webSearch** at least once. The server prefetches **parallel topic-bucket** queries — for a **country/region** (e.g. politics, economy, fuel/inflation, health/agriculture, diplomacy) or for **world/earth** prompts (world news, geopolitics, global economy, science/space, humanitarian, diplomacy). Do **not** anchor retrieval on a single politician’s name unless the user asked about that person. If one theme still dominates, actively pull **other clusters** into the rundown so the user gets a **balanced briefing**, not one story repeated.
+2. **Major claims** (who did what, policy changes, casualty figures, election outcomes): require **two independent outlets or an official source** in the tool payload before stating them as fact. If only one source mentions it, label it with a **link**: *Reported by \`[outlet or headline](url)\`; independent confirmation not found in other results.*
+3. **Source priority:** **Reuters, AP, BBC**-class wires first, then **official** domains, then **strong local** outlets. Use weaker or social sources only with a **Developing** or **Single-source** tag — never present them as if they were wire-confirmed.
+4. Prefer **newest, timestamped** URLs from results; note if snippets are thin or undated.
+5. If sources **conflict**, do not flatten: say *Reports differ:* and summarize each side with links.
+6. If tool results are **empty, error, or too weak** to summarize responsibly, say clearly: *I found limited reliable live reporting for this right now. Here’s the most recent verified information I could confirm* — then only what the payload supports, or say you cannot confirm.
+
+### Answer shape (use this structure unless the user asked for something narrower)
+1. **Title line** — \`# [Topic] — [Locale if relevant] — [calendar date]\` (date from tool snippets or user; never invent a future date).
+2. **Freshness line** — One line: **As of** [date, optional time + timezone if inferable] · **Drawn from** N **distinct news domains** (N = count of outlets you actually linked in the body — not a vague claim).
+3. **Top headlines (3–6 items)** — **Pre-deduped clusters** from **broad bucketed search**. **Match cluster order** from context when provided (global mode: **interleaved** geopolitical → macro economy → humanitarian → science/space → optional cultural so the rundown feels like an international snapshot). **One headline per cluster.** **Topic spread:** Aim for **≥3 distinct categories** when clusters allow — not four near-duplicate politics items.
+   - **Bold topic label** (e.g. **Geopolitics**, **Global economy**, **Science**).
+   - **Line 1 — what happened:** one tight sentence with **2+ inline markdown links** *inside* the prose — e.g. \`Parliament sat as [Reuters](u1) and [BBC](u2) reported protests outside.\` **Do not** write bare outlet names (\`Reuters said…\`, \`according to AP\`); **every** attribution must be \`[Outlet or headline](url)\`.
+   - **Line 2 — stakes:** **\`*Why it matters:*\`** one sentence: who is affected, what could change, or why a global reader should care **now** (not a second recap of the fact).
+   - **Line 3:** italic confidence — *\`Multi-source · N distinct domains\`* · *\`Single-source\`* · *\`Conflicting reports\`* · *\`Developing\`* · *\`Limited live coverage\`*.
+   - Do **not** rank a **single-source** or **hyper-local** item above clearly broader stories unless the user scoped the question that way.
+4. **What Nexora checked** — Honest bullets only: e.g. ran **category-spread** live searches; compared overlapping reports; **summarized the most consistently reported developments**; **checked multiple current sources before summarizing**.
+5. **Footer** — *Sources checked:* name **news domains you cited** (prioritize **Reuters, AP, BBC**, official, strong local). **Omit Wikipedia** and encyclopedias. *Live summary — outlets update continuously.*
+
+### Machine-readable summary (required)
+After the markdown above, end with **exactly one** fenced block:
+
+\`\`\`nexora-live-news-json
+{
+  "headlines": [
+    {
+      "topicLabel": "Politics",
+      "claim": "One-sentence factual claim; mirror inline links as citations only (no bare outlet names in claim text).",
+      "whyItMatters": "One sentence: stakes for global readers (required when 3+ headlines).",
+      "citations": [
+        { "title": "...", "url": "https://...", "domain": "example.com", "publishedAt": "optional ISO or omit" }
+      ],
+      "verificationLevel": "multi_source | single_source | conflicting | limited_coverage | developing",
+      "confidenceLabel": "Same as italics in markdown (e.g. Multi-source, Developing)",
+      "independentDomainCount": 2
+    }
+  ],
+  "dominantDomainShare": 0.35
+}
+\`\`\`
+
+Use **only** URLs you showed in tool results; **omit** Wikipedia. Each headline’s \`citations\` must mirror the **same** markdown links as the bullet (\`[outlet or headline](url)\`). Include \`whyItMatters\` for every item when possible. \`independentDomainCount\` = distinct domains in \`citations\`. \`dominantDomainShare\` = rough share of results from the single most common domain (0–1); estimate from clusters if needed.
+
+### Style
+- **Claim-level grounding:** every headline has its **own** linked outlets (not one shared footer only); links are the **only** place outlet names appear in the claim line.
+- **Why it matters** is **obligatory** for each headline when you have room (3–6 items): one sentence, no duplicate of the claim.
+- No fake certainty. No filler about “as an AI”. No pretending you searched if webSearch did not run.`;
 
 export const CURRENT_FACT_SYSTEM_RULES = `
 
@@ -279,6 +337,11 @@ export function currentFactToolFailureUserMessage(topicHint?: string): string {
     ? ` (${topicHint})`
     : "";
   return `I couldn’t complete a required live web search for this question${tail}, so I can’t responsibly state who or what is current. Please try again in a moment, or check a trusted news or official government source.`;
+}
+
+/** Live-news mode detected but no webSearch tool completed. */
+export function liveNewsToolFailureUserMessage(): string {
+  return `I found limited reliable live reporting for this right now. I couldn’t complete the required web searches for a verified roundup—please try again shortly, or check trusted local and international outlets directly.`;
 }
 
 /** Provider / tool-loop failures (e.g. "Failed to call a function") — user-facing. */

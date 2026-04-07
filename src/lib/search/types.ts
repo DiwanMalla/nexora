@@ -14,6 +14,8 @@ export interface SearchResult {
   url: string;
   content: string;
   score: number;
+  /** Present when the search provider returns a publish time. */
+  published_date?: string;
 }
 
 export interface SearchResponse {

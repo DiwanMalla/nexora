@@ -126,8 +126,8 @@ const STYLE_GUIDANCE: Record<ChatResponseStyleIntent, string> = {
 4. **What is too early to judge** — tenure length, pending items, disputed reporting.
 5. **Sources** — markdown links from **webSearch** results only.
 **Markdown:** For GDP, per capita, or any numbers, use a **proper** pipe table (header row + \`| --- |\` separator row) **or** lines like **GDP (reported):** … — **never** stray \`|\` characters inside normal prose (that breaks rendering).`,
-  live_news: `**Aim:** Broad **“what’s going on”** / situation snapshot, not a single datapoint.
-**Structure:** Flexible. Often a **brief overview**, then **grouped developments** (bullets or small subsections) only if results support it; optional background. Close with **linked sources** from tool results. **Pick your own section titles** each time—avoid the same outline on every reply.`,
+  live_news: `**Aim:** **Live answer engine** — broad **topic-bucket** retrieval, **≥3 themes** when possible, **global snapshot** ordering (interleaved lenses when context says so), **one \`*Why it matters:*\` line per headline**, and **claim text that uses only \`[outlet](url)\` links** (no bare wire names).
+**Structure:** Follow the **Live news roundup** system block; prefer **Multi-source / Single-source / Conflicting reports / Developing** labels over heavy “verified” language.`,
   repo_inspection: `**Aim:** **Codebase / project** questions without pretending you opened files unless this chat actually provided file content.
 **Structure:** Separate **what you can support** from **what’s uncertain**. Omni-style **verified / planned / unclear** framing is allowed but **not required**—use whatever headings help. Don’t claim files were read if they weren’t in context.`,
   teaching: `**Aim:** **Explain or teach** at the level the user asked for.

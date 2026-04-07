@@ -6,7 +6,11 @@
  * JSON, or duplicate error-handling logic.
  */
 
-import type { ChatAPIRequest, ChatAPIResponse } from "@/types";
+import type {
+  ChatAPIRequest,
+  ChatAPIResponse,
+  LiveNewsStreamProgressStage,
+} from "@/types";
 
 /**
  * Sends a chat completion request to the `/api/chat` endpoint.
@@ -32,6 +36,87 @@ export async function sendChatMessage(
   }
 
   return data;
+}
+
+type NdjsonChatEvent =
+  | { type: "progress"; stage: LiveNewsStreamProgressStage }
+  | {
+      type: "done";
+      text?: string;
+      model?: string;
+      meta?: ChatAPIResponse["meta"];
+      error?: string;
+      details?: string;
+    }
+  | { type: "error"; error: string };
+
+/**
+ * Live-news path: NDJSON stream with `progress` lines then a final `done` object.
+ */
+export async function sendChatMessageStream(
+  payload: ChatAPIRequest,
+  onProgress: (stage: LiveNewsStreamProgressStage) => void,
+): Promise<ChatAPIResponse> {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, stream: true }),
+  });
+
+  if (!response.ok) {
+    let message = "Unable to get a response.";
+    try {
+      const data = (await response.json()) as ChatAPIResponse;
+      message = data.details || data.error || message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body.");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let last: ChatAPIResponse = {};
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let ev: NdjsonChatEvent;
+      try {
+        ev = JSON.parse(trimmed) as NdjsonChatEvent;
+      } catch {
+        continue;
+      }
+      if (ev.type === "progress" && ev.stage) {
+        onProgress(ev.stage);
+      }
+      if (ev.type === "done") {
+        last = {
+          text: ev.text,
+          model: ev.model,
+          meta: ev.meta,
+          error: ev.error,
+          details: ev.details,
+        };
+      }
+      if (ev.type === "error") {
+        throw new Error(ev.error || "Stream error.");
+      }
+    }
+  }
+
+  return last;
 }
 
 /**

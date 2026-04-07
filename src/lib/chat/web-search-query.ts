@@ -69,17 +69,25 @@ export type SanitizeLiveWebSearchQueryParams = {
   query: string;
   userText: string;
   factIntent: CurrentFactIntent;
+  /** Broad live-news roundup — same year-stripping as current-fact when undated. */
+  liveNewsGrounded?: boolean;
   now?: Date;
 };
 
 export function sanitizeLiveWebSearchQuery(
   params: SanitizeLiveWebSearchQueryParams,
 ): string {
-  const { query, userText, factIntent, now = new Date() } = params;
+  const { query, userText, factIntent, liveNewsGrounded, now = new Date() } =
+    params;
   const trimmed = query.trim();
   if (!trimmed) return trimmed;
 
-  if (!shouldSanitizeSearchQueryForCurrentFact(userText, factIntent)) {
+  const treatAsLive =
+    shouldSanitizeSearchQueryForCurrentFact(userText, factIntent) ||
+    (Boolean(liveNewsGrounded) &&
+      !userAnchoredCalendarYearInQuestion(userText));
+
+  if (!treatAsLive) {
     return trimmed;
   }
 

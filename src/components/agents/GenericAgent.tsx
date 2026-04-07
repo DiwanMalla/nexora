@@ -25,6 +25,7 @@ import { AttachmentNotesPanel } from "@/components/chat/AttachmentNotesPanel";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { useChatAgent } from "@/hooks/use-chat-agent";
 import { MultiChatColumns } from "./MultiChatColumns";
+import { detectBroadCurrentNewsOverviewIntent } from "@/lib/chat/current-fact";
 import { AGENT_TYPE_LABELS, type AttachmentNote } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
 
@@ -40,8 +41,13 @@ export function GenericAgent() {
   const type = searchParams.get("type") || "aichat";
   const conversationId = searchParams.get("id");
 
-  const { isMultiChat, selectedModel, selectedAgent, setSelectedAgent } =
-    useWorkspace();
+  const {
+    isMultiChat,
+    selectedModel,
+    selectedAgent,
+    setSelectedAgent,
+    chatWebSearchEnabled,
+  } = useWorkspace();
 
   // Sync agent type from URL to context
   useEffect(() => {
@@ -66,10 +72,18 @@ export function GenericAgent() {
     onAttachmentFileChange,
     attachmentFileInputRef,
     resolveConversationId,
+    liveNewsStreamStage,
   } = useChatAgent({ agentType: type, selectedModel });
 
   const agentLabel = getAgentLabel(type);
   const showMultiColumns = isMultiChat && selectedAgent !== "omni";
+
+  const lastUserLine =
+    [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const liveNewsProgressLoading =
+    isLoading &&
+    chatWebSearchEnabled &&
+    detectBroadCurrentNewsOverviewIntent(lastUserLine);
 
   // ─── Multi-chat mode ────────────────────────────────────────
 
@@ -131,6 +145,19 @@ export function GenericAgent() {
           <ChatMessages
             messages={messages}
             isLoading={isLoading}
+            loadingHint={
+              liveNewsProgressLoading
+                ? liveNewsStreamStage === "searching"
+                  ? "Searching the web…"
+                  : liveNewsStreamStage === "fetching"
+                    ? "Fetching live pages…"
+                    : liveNewsStreamStage === "clustering"
+                      ? "Grouping distinct stories…"
+                      : "Writing verified summary…"
+                : undefined
+            }
+            liveNewsProgressLoading={liveNewsProgressLoading}
+            liveNewsStreamStage={liveNewsStreamStage}
             agentId={type || "aichat"}
             lastMessageRef={lastMessageRef}
             onOpenAttachmentNote={setSelectedAttachmentNote}

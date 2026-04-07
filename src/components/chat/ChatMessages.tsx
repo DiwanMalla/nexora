@@ -7,12 +7,19 @@
 
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Hexagon, Paperclip, FileSearch, Eye } from "lucide-react";
 import { cn, stripThinkBlocks } from "@/lib/utils";
-import type { AttachmentNote, ChatAttachmentRef, ChatMessage } from "@/types";
+import type {
+  AttachmentNote,
+  ChatAssistantMeta,
+  ChatAttachmentRef,
+  ChatMessage,
+  LiveNewsStreamProgressStage,
+} from "@/types";
 import { MessageActions } from "./MessageActions";
 import { remarkOmniReportSections } from "@/lib/markdown/remark-omni-report-sections";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
@@ -52,12 +59,155 @@ function normalizeAssistantMarkdownForDisplay(input: string): string {
   return text;
 }
 
+const LIVE_NEWS_PROGRESS_LABELS = [
+  "Searching trusted sources",
+  "Checking latest headlines",
+  "Verifying across sources",
+  "Summarizing confirmed updates",
+] as const;
+
+const STREAM_STAGE_ORDER: LiveNewsStreamProgressStage[] = [
+  "searching",
+  "fetching",
+  "clustering",
+  "summarizing",
+];
+
+const STREAM_STAGE_LABELS: Record<LiveNewsStreamProgressStage, string> = {
+  searching: "Searching the web",
+  fetching: "Fetching live pages",
+  clustering: "Grouping distinct stories",
+  summarizing: "Writing verified summary",
+};
+
+function liveNewsStreamProgressSteps(
+  stage: LiveNewsStreamProgressStage | null,
+): Array<{ label: string; done: boolean }> {
+  if (!stage) {
+    return STREAM_STAGE_ORDER.map((k) => ({
+      label: STREAM_STAGE_LABELS[k],
+      done: false,
+    }));
+  }
+  const idx = STREAM_STAGE_ORDER.indexOf(stage);
+  const activeIndex = idx < 0 ? 0 : idx;
+  return STREAM_STAGE_ORDER.map((k, i) => ({
+    label: STREAM_STAGE_LABELS[k],
+    done: i < activeIndex,
+  }));
+}
+
+function LiveNewsResearchSummary({ meta }: { meta: ChatAssistantMeta }) {
+  const [open, setOpen] = useState(false);
+  if (meta.responseStyleIntent !== "live_news") return null;
+
+  const queries = meta.webSearchQueries ?? [];
+  const n = meta.webSearchCalls ?? 0;
+
+  return (
+    <div className="ml-11 rounded-lg border border-border/80 bg-surface-overlay/40 px-3 py-2 text-[11px]">
+      <div className="mb-1.5 flex items-center gap-2 font-semibold text-text">
+        <span>Live research</span>
+        {meta.liveNewsGrounded ? (
+          <span className="rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-300">
+            Grounded
+          </span>
+        ) : null}
+      </div>
+      <ul className="space-y-1 text-text-muted">
+        <li className="flex gap-2">
+          <span aria-hidden>✓</span>
+          <span>Searched trusted web sources</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden>✓</span>
+          <span>Opened live pages from results</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden>✓</span>
+          <span>Compared overlapping reports</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden>✓</span>
+          <span>Summarized the most consistently reported updates</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden>✓</span>
+          <span>Checked multiple current sources before summarizing</span>
+        </li>
+      </ul>
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+        <span className="text-[10px] text-text-dim">
+          {n > 0
+            ? `${n} web search${n === 1 ? "" : "es"}`
+            : "No web searches recorded"}
+        </span>
+        {queries.length > 0 ||
+        (meta.liveNewsStructured &&
+          meta.liveNewsStructured.headlines.length > 0) ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded border border-border bg-bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? "Hide" : "View"}
+          </button>
+        ) : null}
+      </div>
+      {open && queries.length > 0 ? (
+        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded border border-border/60 bg-bg-card/50 px-2 py-1.5 text-[10px] text-text-muted">
+          {queries.map((q) => (
+            <li key={q} className="list-inside list-disc">
+              {q}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {open &&
+      meta.liveNewsStructured &&
+      meta.liveNewsStructured.headlines.length > 0 ? (
+        <div className="mt-2 border-t border-border/60 pt-2 text-[10px] text-text-muted">
+          <div className="mb-1 font-semibold text-text">
+            Structured claims ({meta.liveNewsStructured.headlines.length})
+          </div>
+          <ul className="max-h-32 space-y-1 overflow-y-auto">
+            {meta.liveNewsStructured.headlines.slice(0, 8).map((h, i) => (
+              <li key={`${h.topicLabel}-${i}`}>
+                <span className="font-medium text-text">{h.topicLabel}</span>
+                {h.confidenceLabel ? (
+                  <span className="text-text-dim">
+                    {" "}
+                    · <em>{h.confidenceLabel}</em>
+                  </span>
+                ) : null}
+                {h.whyItMatters ? (
+                  <div className="mt-0.5 text-text-dim leading-snug">
+                    <span className="font-medium not-italic text-text-muted">
+                      Why it matters:{" "}
+                    </span>
+                    {h.whyItMatters}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
   loadingHint?: string;
   progressSteps?: Array<{ label: string; done: boolean }>;
   activeStepLabel?: string;
+  /** While waiting on /api/chat for a broad live-news prompt — compact pipeline steps. */
+  liveNewsProgressLoading?: boolean;
+  /** Server-reported stage when using NDJSON stream (live news). */
+  liveNewsStreamStage?: LiveNewsStreamProgressStage | null;
   agentId?: string;
   /** Ref attached to the last message so parent can scroll it into view. */
   lastMessageRef?: React.RefObject<HTMLDivElement | null>;
@@ -178,6 +328,7 @@ function AssistantMessage({
   content,
   model,
   topContent,
+  assistantMeta,
   showTypingIndicator = false,
   hideActions = false,
   reportMode = false,
@@ -186,6 +337,7 @@ function AssistantMessage({
   content: string;
   model?: string;
   topContent?: React.ReactNode;
+  assistantMeta?: ChatAssistantMeta;
   showTypingIndicator?: boolean;
   hideActions?: boolean;
   reportMode?: boolean;
@@ -216,6 +368,8 @@ function AssistantMessage({
       </div>
 
       {showTypingIndicator && <TypingIndicator />}
+
+      {assistantMeta ? <LiveNewsResearchSummary meta={assistantMeta} /> : null}
 
       {topContent}
 
@@ -440,6 +594,8 @@ export function ChatMessages({
   loadingHint,
   progressSteps = [],
   activeStepLabel,
+  liveNewsProgressLoading = false,
+  liveNewsStreamStage = null,
   lastMessageRef,
   replyImages = [],
   replyImageQuery = null,
@@ -457,6 +613,13 @@ export function ChatMessages({
       : "";
   const shouldShowTypingIndicator =
     isLoading && (lastMessage?.role !== "assistant" || !lastAssistantContent);
+
+  const mergedProgressSteps: Array<{ label: string; done: boolean }> =
+    liveNewsProgressLoading && liveNewsStreamStage !== null
+      ? liveNewsStreamProgressSteps(liveNewsStreamStage)
+      : liveNewsProgressLoading
+        ? LIVE_NEWS_PROGRESS_LABELS.map((label) => ({ label, done: false }))
+        : progressSteps;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
@@ -487,6 +650,7 @@ export function ChatMessages({
               <AssistantMessage
                 content={m.content}
                 model={m.model}
+                assistantMeta={m.assistantMeta}
                 showTypingIndicator={false}
                 hideActions={isLast && isLoading}
                 reportMode={reportMode}
@@ -505,7 +669,7 @@ export function ChatMessages({
                       {shouldShowTypingIndicator ? (
                         <TypingIndicator
                           hint={loadingHint}
-                          steps={progressSteps}
+                          steps={mergedProgressSteps}
                           activeLabel={activeStepLabel}
                         />
                       ) : null}
@@ -535,7 +699,7 @@ export function ChatMessages({
           ) : null}
           <AssistantTypingMessage
             hint={loadingHint}
-            steps={progressSteps}
+            steps={mergedProgressSteps}
             activeLabel={activeStepLabel}
           />
         </div>
