@@ -205,7 +205,12 @@ export function CommandBar({
           </div>
         )}
 
-        <div className={cn("glass-composer rounded-2xl p-2", compact && "rounded-xl")}>
+        <div
+          className={cn(
+            "glass-composer rounded-2xl p-2",
+            compact && "rounded-xl",
+          )}
+        >
           <div className="flex flex-col overflow-visible">
             {/* Composer header — pills + char count */}
             <div className="flex items-center justify-between gap-2 px-3 py-2">
@@ -252,7 +257,8 @@ export function CommandBar({
                           omniProvider === "groq"
                             ? "text-[#5200b5]"
                             : "text-[#91aaeb] hover:text-[#dee5ff]",
-                          omniProvider === "groq" && "bg-gradient-to-r from-[#d2bbff] to-[#5a00c6]",
+                          omniProvider === "groq" &&
+                            "bg-gradient-to-r from-[#d2bbff] to-[#5a00c6]",
                         )}
                       >
                         Groq
@@ -404,7 +410,11 @@ export function CommandBar({
                   type="button"
                   onClick={() => onOpenAttachmentPicker?.()}
                   disabled={attachmentBusy}
-                  className={cn(iconBtn, FOCUS_RING, attachmentBusy && "opacity-40")}
+                  className={cn(
+                    iconBtn,
+                    FOCUS_RING,
+                    attachmentBusy && "opacity-40",
+                  )}
                   title="Attach file (PDF, TXT, MD, DOCX — max 10 MB)"
                 >
                   <Paperclip className="h-5 w-5" />

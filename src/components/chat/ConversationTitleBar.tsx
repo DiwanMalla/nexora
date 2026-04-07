@@ -55,7 +55,19 @@ export function ConversationTitleBar({
     let active = true;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    const maxAttempts = 8;
+    const maxAttempts = 20;
+    const scheduleRetryOrFallback = () => {
+      if (!active) return;
+      if (attempt < maxAttempts) {
+        attempt += 1;
+        const delay = Math.min(250 * attempt, 1200);
+        retryTimer = setTimeout(loadTitle, delay);
+        return;
+      }
+      // Avoid staying stuck on "Generating title..." forever.
+      setTitle((prev) => (prev === "Generating title..." ? fallbackTitle : prev));
+      setDraft((prev) => (prev === "Generating title..." ? fallbackTitle : prev));
+    };
 
     const loadTitle = () => {
       void fetch(`/api/history/${encodeURIComponent(titleFetchConversationId)}`, {
@@ -67,23 +79,30 @@ export function ConversationTitleBar({
           };
           if (!active) return;
           if (!res.ok) {
-            if (attempt < maxAttempts) {
-              attempt += 1;
-              retryTimer = setTimeout(loadTitle, 500);
+            // New conversations can briefly 404 before persistence catches up.
+            // For hard 404s, stop retrying to avoid noisy repeated fetches.
+            if (res.status === 404) {
+              setTitle((prev) =>
+                prev === "Generating title..." ? fallbackTitle : prev,
+              );
+              setDraft((prev) =>
+                prev === "Generating title..." ? fallbackTitle : prev,
+              );
+              return;
             }
+            scheduleRetryOrFallback();
             return;
           }
           const next = payload.conversation?.title?.trim();
-          if (!next) return;
+          if (!next) {
+            scheduleRetryOrFallback();
+            return;
+          }
           setTitle(next);
           setDraft(next);
         })
         .catch(() => {
-          if (!active) return;
-          if (attempt < maxAttempts) {
-            attempt += 1;
-            retryTimer = setTimeout(loadTitle, 500);
-          }
+          scheduleRetryOrFallback();
         });
     };
 
@@ -92,7 +111,7 @@ export function ConversationTitleBar({
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [titleFetchConversationId, titleFetchFirstUserMessage]);
+  }, [titleFetchConversationId, titleFetchFirstUserMessage, fallbackTitle]);
 
   const handleSave = async () => {
     if (!conversationId) return;

@@ -13,6 +13,7 @@ export type ChatResponseStyleIntent =
   | "current_fact"
   | "leader_since_office"
   | "live_news"
+  | "calculation"
   | "repo_inspection"
   | "teaching"
   | "writing"
@@ -50,6 +51,15 @@ export function classifyChatResponseStyleIntent(
     )
   ) {
     return "repo_inspection";
+  }
+
+  if (
+    /\b(calculate|compound|interest|revenue|roi|npv|irr|discount\s+rate|cagr|break-?even|profit|margin|amortization|loan|present\s+value|future\s+value|exceeds?|first\s+year)\b/.test(
+      t,
+    ) ||
+    /\b\d+(\.\d+)?\s*[%$]/.test(t)
+  ) {
+    return "calculation";
   }
 
   if (
@@ -128,6 +138,11 @@ const STYLE_GUIDANCE: Record<ChatResponseStyleIntent, string> = {
 **Markdown:** For GDP, per capita, or any numbers, use a **proper** pipe table (header row + \`| --- |\` separator row) **or** lines like **GDP (reported):** … — **never** stray \`|\` characters inside normal prose (that breaks rendering).`,
   live_news: `**Aim:** **Live answer engine** — broad **topic-bucket** retrieval, **≥3 themes** when possible, **global snapshot** ordering (interleaved lenses when context says so), **one \`*Why it matters:*\` line per headline**, and **claim text that uses only \`[outlet](url)\` links** (no bare wire names).
 **Structure:** Follow the **Live news roundup** system block; prefer **Multi-source / Single-source / Conflicting reports / Developing** labels over heavy “verified” language.`,
+  calculation: `**Aim:** Accurate, presentation-quality math/business calculation.
+**Required structure:** (1) **Direct answer** first, (2) **Formulas used**, (3) **Step-by-step calculation**, (4) **Final result(s)**.
+**Math formatting:** Use KaTeX-compatible markdown math delimiters (\`$...$\` inline, \`$$...$$\` display). Do **not** output raw bracket delimiters like \`[ ... ]\`.
+**Display fallback:** If math rendering may be unsupported, provide a plain-text formula line immediately after each equation (example: \`Revenue_5 = 200,000 * (1.15^5)\`).
+**Quality rules:** No contradictory scratch checks, no repeated reasoning loops, no unresolved internal debate in final output. If assumptions are needed, state them once clearly.`,
   repo_inspection: `**Aim:** **Codebase / project** questions without pretending you opened files unless this chat actually provided file content.
 **Structure:** Separate **what you can support** from **what’s uncertain**. Omni-style **verified / planned / unclear** framing is allowed but **not required**—use whatever headings help. Don’t claim files were read if they weren’t in context.`,
   teaching: `**Aim:** **Explain or teach** at the level the user asked for.

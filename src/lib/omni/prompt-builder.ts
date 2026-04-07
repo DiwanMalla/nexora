@@ -14,6 +14,8 @@ export function buildEnhancedSystemPrompt(params: {
   repoEvidenceBlock?: string;
   /** Very recent politics / government — stricter evidence & humility rules */
   strictPoliticalNewsGrounding?: boolean;
+  /** Broad current-events snapshots must stay grounded in retrieved evidence. */
+  strictCurrentEventsGrounding?: boolean;
 }): string {
   const {
     basePrompt,
@@ -26,6 +28,7 @@ export function buildEnhancedSystemPrompt(params: {
     claimVerificationText,
     repoEvidenceBlock,
     strictPoliticalNewsGrounding = false,
+    strictCurrentEventsGrounding = false,
   } = params;
 
   const parts = [basePrompt];
@@ -76,6 +79,18 @@ export function buildEnhancedSystemPrompt(params: {
 - **Conflicting facts:** For **dates, cabinet size, headcounts**, if sources **disagree**, **state the disagreement** (e.g. “outlets report X vs Y”) — **do not** pick one version with confidence.
 - **Specificity:** Do not state precise numbers, dates, or names as hard fact unless **supported by at least one strong excerpt**; otherwise hedge (“reported as…”, “according to …”).
 - **Sources section (your reply):** Use a **clean bullet list**: \`- [Outlet or title](URL)\` one per line — **no** stray pipe \`|\` characters inside sentences; **no** broken partial tables. Keep it readable.
+`);
+    }
+    if (strictCurrentEventsGrounding) {
+      parts.push(`
+
+## STRICT GROUNDING — broad current-events snapshot (mandatory)
+- You have retrieved web evidence in this turn. Base the answer on that evidence first.
+- Do not default to generic "knowledge cutoff" framing when sources are present.
+- If a detail is uncertain or conflicting, say "reporting is mixed/limited" and cite sources; do not fabricate.
+- For "top events right now" prompts, provide distinct developments (avoid repeating one storyline in multiple bullets).
+- For each event, include: (1) what is happening, (2) why it matters globally, (3) likely outcomes.
+- Include a short sources section with markdown links drawn from retrieved URLs.
 `);
     }
   }
@@ -136,6 +151,18 @@ Response style guidance (strict political mode):
 - Use **clear sections** (your headings) separating **what is verified done** vs **what is only announced / proposed** vs **what is uncertain or disputed**.
 - Put **## Sources** (or equivalent) **near the end** only, as a **simple bullet list** of markdown links—no tables unless every row is complete and valid.
 - Avoid overconfident phrasing; prefer “reported”, “according to”, “sources disagree on…”.
+`
+      : strictCurrentEventsGrounding
+        ? `
+Response style guidance (strict current-events mode):
+- Always output valid Markdown.
+- Start with "## Summary" and then 3 numbered events.
+- Each numbered event must include the three subpoints: what is happening, why it matters globally, likely outcomes.
+- Use evidence-first language grounded in retrieved context; avoid stale generic commentary.
+- If confidence is limited, say so explicitly without inventing specifics.
+- Every numbered event must include at least one credible markdown citation link.
+- Do not fill missing slots with plausible priors. If only 2 events are strongly supported, provide 2 and explicitly say the next slot could not be verified confidently.
+- End with "## Sources" and markdown links.
 `
       : `
 Response style guidance:

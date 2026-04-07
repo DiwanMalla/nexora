@@ -75,7 +75,7 @@ export function detectStrictPoliticalNewsQuery(query: string): boolean {
   if (t.length < 12) return false;
 
   const political =
-    /\b(pm|p\.m\.|prime\s+minister|president|mayor|governor|chief\s+minister|premier|cabinet|parliament|congress|senate|house\s+of\s+representatives|ruling\s+party|opposition|coalition|ministers?|sworn\s+in|inaugurat|oath\s+of\s+office|vote\s+of\s+confidence|snap\s+election|by-?election|legislature|downing\s+street|white\s+house)\b/.test(
+    /\b(pm|p\.m\.|prime\s+minister|president|mayor|governor|chief\s+minister|premier|cabinet|parliament|congress|senate|house\s+of\s+representatives|ruling\s+party|opposition|coalition|ministers?|sworn\s+in|inaugurat|oath\s+of\s+office|vote\s+of\s+confidence|snap\s+election|by-?election|legislature|downing\s+street|white\s+house|geopolitic(?:al)?|international\s+relations|foreign\s+policy|conflict|ceasefire|sanctions?|summit|diplomacy)\b/.test(
       t,
     );
 

@@ -145,7 +145,7 @@ body {
   h1 { font-size: var(--text-3xl); }
   h2 { font-size: var(--text-2xl); }
   h3 { font-size: var(--text-xl); }
-  h4 { font-size: var(--text-lg); }
+  h4 { font-size: inherit; }
   h5, h6 { font-size: var(--text-md); }
   ul, ol {
     margin: 0 0 var(--space-paragraph) 0;
@@ -163,22 +163,23 @@ body {
 
 /* Chat / prose content – clear hierarchy: title > subtitle > heading > body */
 .typography-prose {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   line-height: var(--leading-relaxed);
   letter-spacing: var(--tracking-normal);
   color: var(--text);
 }
 /* Body text – base size */
 .typography-prose p {
-  font-size: var(--text-md);
-  margin-bottom: 1em;
+  font-size: var(--text-base);
+  margin-bottom: 1.25em;
   font-weight: 400;
+  color: var(--text);
 }
-/* Lead paragraph – slightly larger when first (helps when AI doesn’t use # title) */
+/* Lead paragraph - inherited from normal paragraph */
 .typography-prose > p:first-child {
-  font-size: var(--text-lg);
-  font-weight: 500;
-  line-height: var(--leading-snug);
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
 }
 .typography-prose p:last-child {
   margin-bottom: 0;
@@ -211,7 +212,7 @@ body {
 }
 /* Subsection (e.g. ### Increased Adoption) */
 .typography-prose h3 {
-  font-size: var(--text-lg);
+  font-size: inherit;
   font-weight: 600;
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-snug);
@@ -307,6 +308,19 @@ body {
   margin: 1.25em 0;
 }
 
+/* Keep rendered math readable and prevent character-level wrapping artifacts. */
+.typography-prose .katex,
+.typography-prose .katex * {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+.typography-prose .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.125rem;
+}
+
 /* ─── AI Chat polished answers (Omni-like scanability, lighter chrome) ─ */
 .ai-chat-answer-panel {
   position: relative;
@@ -327,7 +341,7 @@ body {
   margin-top: 0;
 }
 .ai-chat-answer-panel h3 {
-  font-size: var(--text-lg);
+  font-size: inherit;
   font-weight: 600;
   margin-top: 0.85em;
   margin-bottom: 0.35em;

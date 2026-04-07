@@ -27,6 +27,8 @@ export type LiveNewsStructuredHeadline = {
   claim: string;
   /** One sentence: stakes / who cares (global snapshot). */
   whyItMatters?: string;
+  /** One sentence: plausible near-term outcomes from current reporting. */
+  likelyOutcomes?: string;
   citations: LiveNewsCitation[];
   verificationLevel: LiveNewsVerificationLevel;
   confidenceLabel?: string;
@@ -36,6 +38,20 @@ export type LiveNewsStructuredHeadline = {
 export type LiveNewsStructuredPayload = {
   headlines: LiveNewsStructuredHeadline[];
   dominantDomainShare?: number;
+};
+
+export type LiveSearchToolResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  domain?: string;
+  publishedAt?: string;
+};
+
+export type LiveSearchToolAction = {
+  provider: string;
+  query: string;
+  results: LiveSearchToolResult[];
 };
 
 /** NDJSON stream progress for live-news requests (`stream: true`). */
@@ -99,6 +115,7 @@ export type ChatResponseMeta = {
     | "current_fact"
     | "leader_since_office"
     | "live_news"
+    | "calculation"
     | "repo_inspection"
     | "teaching"
     | "writing"
@@ -120,6 +137,8 @@ export type ChatResponseMeta = {
   liveNewsStructured?: LiveNewsStructuredPayload;
   /** Queries used in server-side live-news prefetch (before the model tool loop). */
   liveNewsPrefetchQueries?: string[];
+  /** Per-query search actions and top results for transparent research UI. */
+  liveNewsToolActions?: LiveSearchToolAction[];
 };
 
 /** Subset of chat response meta stored on assistant bubbles for UI (e.g. research summary). */
@@ -134,6 +153,7 @@ export type ChatAssistantMeta = Pick<
   | "liveNewsFailureReason"
   | "liveNewsStructured"
   | "liveNewsPrefetchQueries"
+  | "liveNewsToolActions"
 >;
 
 /** A single message in a chat conversation. */

@@ -44,6 +44,10 @@ import {
 } from "@/lib/omni/retrieval";
 import { buildEnhancedSystemPrompt } from "@/lib/omni/prompt-builder";
 import {
+  detectBroadCurrentNewsOverviewIntent,
+  detectCurrentFactIntent,
+} from "@/lib/chat/current-fact";
+import {
   detectStrictPoliticalNewsQuery,
   formatPoliticalNewsEvidenceBlock,
   politicalSourceTierFromUrl,
@@ -307,8 +311,53 @@ const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = Number(
 
 type UserPersona = "student" | "developer" | "business" | "general";
 
+const CUTOFF_FALLBACK_PATTERN =
+  /\b(knowledge\s+cut[\s-]?off|knowledge\s+cutoff|as\s+an?\s+ai(?:\s+language)?\s+model|my\s+training\s+data|i\s+(?:may|might)\s+not\s+reflect\s+the\s+current\s+situation)\b/i;
+
 function encodeHeaderValue(value: string): string {
   return encodeURIComponent(value);
+}
+
+function looksLikeGroundingFallback(text: string): boolean {
+  return CUTOFF_FALLBACK_PATTERN.test(text);
+}
+
+function isLowAuthorityDomain(domain: string): boolean {
+  return /(?:linkedin\.com|reddit\.com|facebook\.com|x\.com|twitter\.com|tiktok\.com|blogspot\.|wordpress\.com)$/i.test(
+    domain,
+  );
+}
+
+function extractMarkdownLinkDomains(text: string): string[] {
+  const domains: string[] = [];
+  const re = /\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/gi;
+  for (const m of text.matchAll(re)) {
+    const url = m[1] ?? "";
+    if (!url) continue;
+    domains.push(getDomain(url));
+  }
+  return domains.filter(Boolean);
+}
+
+function splitNumberedEventBlocks(text: string): string[] {
+  const chunks = text.split(/\n(?=\d+\.\s+)/g);
+  return chunks.filter((c) => /^\d+\.\s+/.test(c.trim()));
+}
+
+function isWikipediaDomain(domain: string): boolean {
+  return /^(?:[a-z]{2,3}\.)?wikipedia\.org$/i.test(domain);
+}
+
+function buildGroundingLockedPrompt(systemPrompt: string): string {
+  return `${systemPrompt}
+
+## HARD GROUNDING LOCK (MANDATORY)
+- Live retrieval succeeded in this turn and source evidence is available.
+- Do NOT answer from prior memory when evidence exists.
+- Do NOT mention "knowledge cutoff", "training data", or similar fallback language.
+- Base each major claim on retrieved evidence. If evidence is mixed, state uncertainty as "reporting is mixed/limited".
+- If evidence is insufficient for a point, say that explicitly rather than guessing.
+`;
 }
 
 function detectUserPersona(userQuery: string): UserPersona {
@@ -562,6 +611,111 @@ function buildExecutionBlocks(userQuery: string): string {
   const uniqueActions = [...new Set(actions)];
   const bullets = uniqueActions.map((action) => `- ${action}`).join("\n");
   return `---\n### 🚀 Next Actions\n${bullets}`;
+}
+
+function parseNumber(raw: string): number | null {
+  const n = Number.parseFloat(raw.replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function maybeBuildDeterministicFinanceAnswer(userQuery: string): string | null {
+  const q = userQuery.replace(/\s+/g, " ").trim();
+  if (
+    !/\b(compound|growth|revenue|exceed|inflation|interest|years?)\b/i.test(q)
+  ) {
+    return null;
+  }
+  const amountMatches = [...q.matchAll(/\$?\s*(\d[\d,]*(?:\.\d+)?)/g)]
+    .map((m) => parseNumber(m[1] ?? ""))
+    .filter((x): x is number => typeof x === "number" && x > 0);
+  const rateMatches = [...q.matchAll(/(\d+(?:\.\d+)?)\s*%/g)]
+    .map((m) => parseNumber(m[1] ?? ""))
+    .filter((x): x is number => typeof x === "number" && x >= 0)
+    .map((x) => x / 100);
+  const horizonMatch = q.match(/\bin\s+(\d+)\s+years?\b/i);
+  const years = horizonMatch?.[1] ? Number.parseInt(horizonMatch[1], 10) : null;
+  if (!years || years <= 0 || amountMatches.length === 0 || rateMatches.length === 0) {
+    return null;
+  }
+  const principal = amountMatches[0]!;
+  const growthRate = rateMatches[0]!;
+  const future = principal * (1 + growthRate) ** years;
+
+  const exceedMatch =
+    q.match(/\bexceed(?:s|ing)?\s+\$?\s*([\d,]+(?:\.\d+)?)/i) ??
+    q.match(/>\s*\$?\s*([\d,]+(?:\.\d+)?)/i);
+  const threshold = exceedMatch?.[1] ? parseNumber(exceedMatch[1]) : null;
+  const thresholdYear =
+    threshold && threshold > principal && growthRate > 0
+      ? Math.ceil(Math.log(threshold / principal) / Math.log(1 + growthRate))
+      : null;
+
+  const inflationMatch = q.match(/\binflation[^.\n]*?(\d+(?:\.\d+)?)\s*%/i);
+  const inflationRate = inflationMatch?.[1]
+    ? (parseNumber(inflationMatch[1]) ?? 0) / 100
+    : null;
+  const realFuture =
+    inflationRate !== null
+      ? future / (1 + inflationRate) ** years
+      : null;
+
+  const lines: string[] = [
+    "## Direct answer",
+    `Projected revenue in ${years} years is **$${future.toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    })}**.`,
+    "",
+    "## Formulas used",
+    `- Future value: \\(R_n = R_0(1+g)^n\\)`,
+    `- Plain text: \`R_n = ${principal.toLocaleString()} * (1 + ${(
+      growthRate * 100
+    ).toFixed(2)}%)^${years}\``,
+  ];
+  if (thresholdYear) {
+    lines.push("- Exceed threshold year: \\(n > \\ln(T/R_0) / \\ln(1+g)\\)");
+  }
+  if (realFuture !== null) {
+    lines.push("- Inflation-adjusted value: \\(R^{real}_n = R_n / (1+i)^n\\)");
+  }
+  lines.push(
+    "",
+    "## Step-by-step calculation",
+    `1. Compute growth factor: \\((1+g)^n = (1 + ${(
+      growthRate * 100
+    ).toFixed(2)}\\%)^{${years}}\\)`,
+    `2. Multiply by base revenue: \\(R_n = ${principal.toLocaleString()} \\times (1+g)^n\\)`,
+    `3. Result: \\(R_n \\approx ${future.toFixed(2)}\\)`,
+  );
+  if (thresholdYear) {
+    lines.push(
+      `4. First year revenue exceeds $${threshold!.toLocaleString()}: **year ${thresholdYear}**.`,
+    );
+  }
+  if (realFuture !== null) {
+    const inflationPct = ((inflationRate ?? 0) * 100).toFixed(2);
+    lines.push(
+      `5. Inflation-adjusted value after ${years} years: **$${realFuture.toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: 2,
+      })}** (assuming ${inflationPct}% annual inflation).`,
+    );
+  }
+  lines.push("", "## Final result");
+  lines.push(`- Revenue in ${years} years: **$${future.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}**`);
+  if (thresholdYear) {
+    lines.push(`- First year exceeding threshold: **${thresholdYear}**`);
+  }
+  if (realFuture !== null) {
+    lines.push(`- Inflation-adjusted value: **$${realFuture.toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    })}**`);
+  }
+  return lines.join("\n");
 }
 
 function postProcessResponse(rawText: string, userQuery: string): string {
@@ -972,7 +1126,17 @@ function scoreDomainCredibility(domain: string): number {
     /groq\.com$/,
     /docs\.groq\.com$/,
   ];
-  const lowTrustPatterns = [/blogspot\./, /medium\.com$/, /reddit\.com$/];
+  const lowTrustPatterns = [
+    /blogspot\./,
+    /medium\.com$/,
+    /reddit\.com$/,
+    /linkedin\.com$/,
+    /facebook\.com$/,
+    /x\.com$/,
+    /twitter\.com$/,
+    /tiktok\.com$/,
+    /wordpress\.com$/,
+  ];
 
   if (highTrustPatterns.some((p) => p.test(domain))) return 1;
   if (lowTrustPatterns.some((p) => p.test(domain))) return 0.35;
@@ -1424,7 +1588,14 @@ export async function POST(req: Request) {
     };
 
     // Override the hardcoded router if we have a recommendation from the classifier
-    const recommendedKey = queryPlan.recommendedModel;
+    const quantitativePrompt =
+      /\b(calculate|compound|growth|cagr|npv|irr|amortization|loan|interest|inflation|discount\s+rate|break-?even|roi|margin|percent(?:age)?|log(?:arithm)?|exponent(?:ial)?|revenue)\b/i.test(
+        pipelineUserText,
+      );
+    let recommendedKey = queryPlan.recommendedModel;
+    if (quantitativePrompt && recommendedKey !== "heavyReasoning") {
+      recommendedKey = "heavyReasoning";
+    }
     const providerCandidates = buildRouteCandidates(
       preferredProvider,
       recommendedKey,
@@ -1439,12 +1610,14 @@ export async function POST(req: Request) {
     const modelId = primaryCandidate.modelId;
     const modelFactory =
       providerName === "openrouter" ? openRouterFactory : groqFactory;
-    const reason = `AI Classifier: ${analysis.reasoning}`;
+    const reason = quantitativePrompt
+      ? `AI Classifier + quantitative override: ${analysis.reasoning}`
+      : `AI Classifier: ${analysis.reasoning}`;
 
     console.log(`        ✅ Category: ${analysis.category}`);
     console.log(`        ✅ Web Search: ${analysis.needsWebSearch}`);
     console.log(
-      `        ✅ Routed to: ${analysis.recommendedModel} (${modelId})`,
+      `        ✅ Routed to: ${recommendedKey} (${modelId})`,
     );
     if (fallbackCandidate) {
       console.log(
@@ -1459,6 +1632,13 @@ export async function POST(req: Request) {
       detail: analysis.reasoning,
       durationMs: step1Time,
     });
+
+    const deterministicFinanceAnswer = maybeBuildDeterministicFinanceAnswer(
+      pipelineUserText,
+    );
+    if (deterministicFinanceAnswer) {
+      console.log("  ✅ Deterministic quantitative calculator path selected.");
+    }
 
     // ── Step 2: Retrieval (strategy-driven) ─────────────────────────────
     let searchResponse: TavilySearchResponse | null = null;
@@ -1561,11 +1741,26 @@ export async function POST(req: Request) {
     }
 
     let strictPoliticalNews = false;
+    const currentFactLookupIntent =
+      detectCurrentFactIntent(pipelineUserText).currentFact &&
+      !detectBroadCurrentNewsOverviewIntent(pipelineUserText);
+    const currentNewsBriefingIntent =
+      analysis.category === "current-events" ||
+      detectBroadCurrentNewsOverviewIntent(pipelineUserText);
+    const strictCurrentEventsGrounding =
+      analysis.needsWebSearch &&
+      currentNewsBriefingIntent &&
+      !currentFactLookupIntent;
     if (searchResponse && webSearchUsed) {
       strictPoliticalNews = detectStrictPoliticalNewsQuery(pipelineUserText);
       if (strictPoliticalNews) {
         console.log(
           "        ✅ Strict political news mode will apply (tier-aware cap + stricter prompt)",
+        );
+      }
+      if (strictCurrentEventsGrounding) {
+        console.log(
+          "        ✅ Strict current-events grounding mode will apply (evidence-first synthesis)",
         );
       }
     }
@@ -1595,6 +1790,62 @@ export async function POST(req: Request) {
         },
       });
 
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
+        },
+      });
+    }
+
+    if (
+      currentFactLookupIntent &&
+      (!searchResponse || (searchResponse.results ?? []).length === 0)
+    ) {
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta:
+              "I couldn't verify this current fact from strong live sources right now. Please retry in a moment or provide a trusted official/reputable link to verify against.",
+          });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
+      return createUIMessageStreamResponse({
+        stream,
+        headers: {
+          "X-Omni-Model": modelId,
+          "X-Omni-Provider": providerName,
+          "X-Omni-Reason": encodeHeaderValue(reason),
+          "X-Omni-Request-Id": requestId,
+        },
+      });
+    }
+
+    if (analysis.category === "current-events" && !searchResponse) {
+      console.log(
+        "  ⚠️ Current-events query without retrieval evidence; returning safe limitation response.",
+      );
+      const stream = createUIMessageStream({
+        execute: ({ writer }) => {
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta:
+              "I couldn't retrieve enough live sources to safely answer this current-events request. I don't want to guess or present stale information as current. Please retry in a moment, or provide specific trusted links to analyze.",
+          });
+          writer.write({ type: "text-end", id: textId });
+        },
+      });
       return createUIMessageStreamResponse({
         stream,
         headers: {
@@ -1692,6 +1943,43 @@ export async function POST(req: Request) {
       isComparisonStyleQuery(pipelineUserText);
     const fastSynthesisPath =
       lightweightComparisonPath || queryPlan.taskType === "web_research";
+
+    if (searchResponse && analysis.category === "current-events") {
+      const before = searchResponse.results.length;
+      searchResponse = {
+        ...searchResponse,
+        results: searchResponse.results.filter(
+          (r) => !isLowAuthorityDomain(getDomain(r.url)),
+        ),
+      };
+      const after = searchResponse.results.length;
+      if (after < before) {
+        console.log(
+          `        ✅ Source quality filter applied (current-events): ${before} -> ${after}`,
+        );
+      }
+    }
+
+    if (searchResponse && currentFactLookupIntent) {
+      const before = searchResponse.results.length;
+      const filtered = searchResponse.results.filter((r) => {
+        const d = getDomain(r.url);
+        if (!d) return false;
+        if (isWikipediaDomain(d)) return false;
+        if (isLowAuthorityDomain(d)) return false;
+        return scoreDomainCredibility(d) >= 0.65;
+      });
+      searchResponse = {
+        ...searchResponse,
+        results: filtered,
+      };
+      const after = filtered.length;
+      if (after < before) {
+        console.log(
+          `        ✅ Current-fact source filter applied: ${before} -> ${after}`,
+        );
+      }
+    }
 
     if (searchResponse && fastSynthesisPath) {
       searchResponse = {
@@ -1837,7 +2125,20 @@ export async function POST(req: Request) {
         : undefined,
       repoEvidenceBlock,
       strictPoliticalNewsGrounding: strictPoliticalNews,
+      strictCurrentEventsGrounding: strictCurrentEventsGrounding && webSearchUsed,
     });
+    if (currentFactLookupIntent) {
+      systemPrompt += `
+
+## Current fact lookup mode (mandatory)
+- This is a single-entity fact verification task, not a multi-event briefing.
+- Start with one direct answer sentence.
+- Then add one short verification line (or uncertainty line if evidence is insufficient).
+- Include 1-3 top credible sources as markdown links.
+- Do not use current-events briefing language like "top events" or "items."
+- Do not use Wikipedia as a lead verification source.
+`;
+    }
     if (attachmentBlock) {
       systemPrompt += `\n\n${attachmentBlock}`;
     }
@@ -1864,6 +2165,31 @@ export async function POST(req: Request) {
     let firstTokenMs: number | null = null;
     let chosenCandidate = primaryCandidate;
     let assistantResponseText = "";
+    const hasGroundedEvidenceForGeneration = Boolean(
+      strictCurrentEventsGrounding &&
+        webSearchUsed &&
+        searchResponse &&
+        searchResponse.results.length > 0 &&
+        analysisText.trim().length > 0,
+    );
+
+    if (hasGroundedEvidenceForGeneration) {
+      console.log(
+        "[Nexora /api/omni-agent] grounding input audit",
+        {
+          strictCurrentEventsGrounding,
+          strictPoliticalNews,
+          sourcesCount: searchResponse?.results.length ?? 0,
+          analysisChars: analysisText.length,
+          factCheckNotesChars: factCheckResult?.notes?.length ?? 0,
+          claimChecks: factCheckResult?.claimChecks.length ?? 0,
+          generationModel: `${chosenCandidate.provider}/${chosenCandidate.modelId}`,
+          sourcePreview: (searchResponse?.results ?? [])
+            .slice(0, 4)
+            .map((r) => ({ title: r.title, url: r.url })),
+        },
+      );
+    }
 
     const persistAssistantResponse = async (
       finalText: string,
@@ -1972,6 +2298,141 @@ export async function POST(req: Request) {
     );
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
+        if (deterministicFinanceAnswer) {
+          assistantResponseText = deterministicFinanceAnswer;
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta: deterministicFinanceAnswer,
+          });
+          writer.write({ type: "text-end", id: textId });
+          await persistAssistantResponse(
+            assistantResponseText,
+            chosenCandidate.modelId,
+          );
+          return;
+        }
+
+        if (hasGroundedEvidenceForGeneration) {
+          const requestedEventCount = (() => {
+            const m =
+              pipelineUserText.match(/\btop\s+(\d+)\b/i) ??
+              pipelineUserText.match(/\b(\d+)\s+most\s+critical\b/i);
+            const n = m?.[1] ? Number.parseInt(m[1], 10) : NaN;
+            return Number.isFinite(n) && n > 0 ? n : 3;
+          })();
+          const credibleDomains = new Set(
+            (searchResponse?.results ?? []).map((r) => getDomain(r.url)).filter(Boolean),
+          );
+          const validateGroundedBriefing = (text: string): boolean => {
+            if (!text.trim()) return false;
+            if (looksLikeGroundingFallback(text)) return false;
+            const blocks = splitNumberedEventBlocks(text);
+            if (blocks.length === 0) return false;
+            for (const block of blocks) {
+              const domains = extractMarkdownLinkDomains(block);
+              const hasCredible = domains.some((d) => credibleDomains.has(d));
+              if (!hasCredible) return false;
+            }
+            if (blocks.length < requestedEventCount) {
+              if (
+                !/\b(unable to verify|could not verify|insufficient (?:evidence|source)|reporting is limited)\b/i.test(
+                  text,
+                )
+              ) {
+                return false;
+              }
+            }
+            return true;
+          };
+
+          const runGroundedGeneration = async (candidate: RouteCandidate) => {
+            const factory =
+              candidate.provider === "openrouter" ? openRouterFactory : groqFactory;
+            const groundedPrompt = buildGroundingLockedPrompt(systemPrompt);
+            return generateText({
+              model: factory(candidate.modelId as Parameters<typeof groq>[0]),
+              messages: [
+                { role: "system", content: groundedPrompt },
+                ...messagesForModel,
+              ],
+            });
+          };
+
+          let groundedText = "";
+          let groundedCandidate = chosenCandidate;
+          const primaryPass = await runGroundedGeneration(chosenCandidate);
+          groundedText = primaryPass.text?.trim() ?? "";
+          let groundedValid = validateGroundedBriefing(groundedText);
+
+          if (!groundedValid) {
+            console.warn(
+              "[Nexora /api/omni-agent] grounding validation failed on primary output; retrying strict generation",
+              {
+                model: `${chosenCandidate.provider}/${chosenCandidate.modelId}`,
+                preview: groundedText.slice(0, 220),
+              },
+            );
+
+            const retryCandidate: RouteCandidate =
+              fallbackCandidate ??
+              (chosenCandidate.routeKey === "heavyReasoning"
+                ? chosenCandidate
+                : {
+                    provider: chosenCandidate.provider,
+                    modelId: getModelIdForProvider(
+                      chosenCandidate.provider,
+                      "heavyReasoning",
+                    ),
+                    routeKey: "heavyReasoning",
+                  });
+
+            const retryPass = await runGroundedGeneration(retryCandidate);
+            const retryText = retryPass.text?.trim() ?? "";
+            if (retryText) {
+              groundedText = retryText;
+              groundedCandidate = retryCandidate;
+              groundedValid = validateGroundedBriefing(retryText);
+            }
+          }
+
+          if (!groundedValid) {
+            const topSources = (searchResponse?.results ?? [])
+              .slice(0, Math.min(requestedEventCount, 3))
+              .map((r) => `- [${r.title}](${r.url})`)
+              .join("\n");
+            groundedText = `I could verify only ${
+              Math.min((searchResponse?.results ?? []).length, requestedEventCount)
+            } strong current-events items from retrieved sources right now, so I am not filling missing slots with unverified priors.\n\nPlease verify independently if this changes quickly. Here are the strongest currently retrieved sources:\n${topSources}`;
+          }
+
+          chosenCandidate = groundedCandidate;
+          assistantResponseText = groundedText;
+
+          const textId = `omni-${Date.now()}`;
+          writer.write({ type: "text-start", id: textId });
+          writer.write({
+            type: "text-delta",
+            id: textId,
+            delta:
+              groundedText ||
+              "I couldn't produce a grounded response from retrieved evidence.",
+          });
+          writer.write({ type: "text-end", id: textId });
+
+          const completeMs = Date.now() - generationStartMs;
+          console.log(
+            `[Nexora /api/omni-agent] strict grounded generation complete after ${completeMs}ms model=${groundedCandidate.provider}/${groundedCandidate.modelId}`,
+          );
+          await persistAssistantResponse(
+            assistantResponseText,
+            groundedCandidate.modelId,
+          );
+          return;
+        }
+
         const makeResult = (candidate: RouteCandidate) => {
           const factory =
             candidate.provider === "openrouter" ? openRouterFactory : groqFactory;

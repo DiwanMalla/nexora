@@ -74,12 +74,29 @@ export async function sendChatMessageStream(
     throw new Error(message);
   }
 
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  // Server may return plain JSON when stream was requested but route selected
+  // non-live-news flow. Gracefully parse JSON instead of forcing NDJSON only.
+  if (contentType.includes("application/json")) {
+    const jsonText = await response.text();
+    try {
+      const data = JSON.parse(jsonText) as ChatAPIResponse;
+      if (data.error || data.details) {
+        throw new Error(data.details || data.error || "Unable to get a response.");
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof Error) throw error;
+      throw new Error("Live search did not complete.");
+    }
+  }
+
   const reader = response.body?.getReader();
   if (!reader) {
     throw new Error("No response body.");
   }
-
   const decoder = new TextDecoder();
+
   let buffer = "";
   let last: ChatAPIResponse = {};
   let sawDone = false;

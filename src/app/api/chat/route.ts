@@ -13,8 +13,9 @@ import { createGroq } from "@ai-sdk/groq";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { tavilySearch } from "@/lib/search";
+import { braveSearch, tavilySearch } from "@/lib/search";
 import type { SearchResponse } from "@/lib/search/types";
+import { mergeSearchResponses } from "@/lib/search/merge";
 import { getModelNameByApiId } from "@/lib/ai-providers";
 import { getOpenRouter } from "@/lib/ai/providers";
 import { AI_CHAT_CONSENSUS_ENABLED, AVAILABLE_MODELS } from "@/lib/constants";
@@ -105,11 +106,33 @@ function hasPipeTableSignal(text: string): boolean {
   return /\|/.test(text) && (/\n\|/.test(text) || /\|\s*---/.test(text));
 }
 
+const LOW_AUTHORITY_CITATION_DOMAIN =
+  /(?:linkedin\.com|reddit\.com|facebook\.com|x\.com|twitter\.com|tiktok\.com|blogspot\.|wordpress\.com)$/i;
+
+function isLowAuthorityCitationUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    return LOW_AUTHORITY_CITATION_DOMAIN.test(host);
+  } catch {
+    return false;
+  }
+}
+
 const WEB_SEARCH_SYSTEM_SUFFIX = `
 
 You have a tool named **webSearch** (Tavily) for live web facts. Call it when the user needs current events, recent news, time-sensitive facts, or verification against up-to-date sources.
 **Search queries:** keep them short and natural (e.g. \`latest news in Nepal\`, \`Nepal political situation\`, \`Nepal economy latest\`). For rolling “what’s happening now” questions, **do not** put **past calendar years** in the query string unless the user explicitly asked about that year — the index is already time-aware.
 After results return: lead with the direct answer, then structure the rest as fits (bullets, short sections). Include **real markdown links** from the results **toward the end**—heading names are flexible. Prefer readable structure over one dense block when the answer is non-trivial.${NO_FAKE_VERIFICATION_LANGUAGE}`;
+
+const BEST_EFFORT_WEB_ASSIST_SYSTEM_SUFFIX = `
+
+## Best-effort web-assisted mode (no tools during answer generation)
+Live retrieval has already run before this generation step. You must answer from the supplied evidence pack and conversation context only.
+- Do not call, mention, or imply tool usage in this answer stage.
+- Do not output tool/function call syntax.
+- If evidence is weak or conflicting, say so explicitly.
+- If generation cannot complete from supplied evidence, say that clearly instead of fabricating.
+`;
 
 async function ensureProfileExists(userId: string): Promise<void> {
   try {
@@ -573,6 +596,8 @@ export async function POST(req: Request) {
   const requiresToolFlowModel = liveNewsIntent || factIntent.currentFact;
   const toolFlowModelUnsupported =
     requiresToolFlowModel && !liveNewsModelSupportsToolFlow;
+  const bestEffortWebAssist =
+    toolFlowModelUnsupported && requiresToolFlowModel && webSearchEnabled;
   const liveNewsGrounded = liveNewsIntent && liveNewsModelSupportsToolFlow;
   const liveNewsModelUnsupported =
     liveNewsIntent && !liveNewsModelSupportsToolFlow;
@@ -581,7 +606,8 @@ export async function POST(req: Request) {
     effectiveWebSearch = true;
   }
   const newsSearchRequired = liveNewsGrounded;
-  const forceFirstStepWebSearch = factIntent.currentFact || newsSearchRequired;
+  const forceFirstStepWebSearch =
+    (factIntent.currentFact || newsSearchRequired) && !bestEffortWebAssist;
   const streamRequested = body.stream === true;
   const useNdjsonStream =
     streamRequested &&
@@ -599,6 +625,7 @@ export async function POST(req: Request) {
     liveNewsModelUnsupported,
     requiresToolFlowModel,
     toolFlowModelUnsupported,
+    bestEffortWebAssist,
     effectiveWebSearch,
     newsSearchRequired,
     forceFirstStepWebSearch,
@@ -610,7 +637,9 @@ export async function POST(req: Request) {
     systemPrompt += presentation.systemAddendum;
   }
 
-  if (factIntent.currentFact) {
+  if (bestEffortWebAssist) {
+    systemPrompt += BEST_EFFORT_WEB_ASSIST_SYSTEM_SUFFIX;
+  } else if (factIntent.currentFact) {
     systemPrompt += CURRENT_FACT_SYSTEM_RULES;
   } else if (effectiveWebSearch) {
     systemPrompt += WEB_SEARCH_SYSTEM_SUFFIX;
@@ -629,7 +658,7 @@ export async function POST(req: Request) {
     systemPrompt += `\n\n${attachmentBlock}`;
   }
 
-  const useWebSearchToolLoop = effectiveWebSearch;
+  const useWebSearchToolLoop = effectiveWebSearch && !bestEffortWebAssist;
 
   const normalizedTurnMessages: ChatMsg[] = (
     messages as Array<{ role: string; content: unknown }>
@@ -716,36 +745,10 @@ export async function POST(req: Request) {
   try {
     if (toolFlowModelUnsupported) {
       logLifecycle("tool_flow_model_unsupported", {
-        reason: "model_not_supported",
+        reason: "model_not_supported_best_effort_enabled",
         liveNewsIntent,
         currentFactIntent: factIntent.currentFact,
       });
-      const unsupportedText = `This model (${modelDisplayName}) doesn’t support Nexora’s live web-grounded flow yet. Please switch to a supported model (for example: GPT-4o mini, Llama 3.3 70B, or Gemini 2.5 Flash) for live-news/current-fact verification.`;
-      const meta: ChatResponseMeta = {
-        mode: "single",
-        provider: modelProvider,
-        modelId,
-        displayName: modelDisplayName,
-        webSearchEnabled: effectiveWebSearch,
-        webSearchCalls: 0,
-        stepCount: 0,
-        currentFactIntent: factIntent.currentFact,
-        currentFactReason: factIntent.reason,
-        currentFactGuardTriggered: false,
-        responseStyleIntent,
-        liveNewsGrounded: false,
-        liveNewsSearchAttempted: liveNewsIntent,
-        liveNewsSearchCompleted: false,
-        liveNewsFailureReason: "model_not_supported",
-      };
-      return NextResponse.json(
-        {
-          text: unsupportedText,
-          model: modelDisplayName,
-          meta,
-        } satisfies ChatAPIResponse,
-        { status: 200 },
-      );
     }
 
     const chatTurn = async (
@@ -753,14 +756,38 @@ export async function POST(req: Request) {
     ): Promise<Response> => {
       let liveNewsCache: SearchResponse | null = null;
       let liveNewsConsumed = false;
+      const liveNewsToolActions: Array<{
+        provider: string;
+        query: string;
+        results: Array<{
+          title: string;
+          url: string;
+          snippet: string;
+          domain?: string;
+          publishedAt?: string;
+        }>;
+      }> = [];
       const prefetchQueries: string[] = [];
       let prefetchSearchCompleted = false;
       let messagesForModel = messagesWithIdentity;
       let preflightDominantShare: number | undefined;
 
-      if (liveNewsGrounded && effectiveWebSearch) {
+      if ((liveNewsGrounded || bestEffortWebAssist) && effectiveWebSearch) {
         onLiveNews?.("searching");
-        prefetchQueries.push(...buildLiveNewsPrefetchQueries(lastUserText));
+        if (liveNewsGrounded) {
+          prefetchQueries.push(...buildLiveNewsPrefetchQueries(lastUserText));
+        } else {
+          const q0 = sanitizeLiveWebSearchQuery({
+            query: lastUserText,
+            userText: lastUserText,
+            factIntent,
+            liveNewsGrounded: false,
+          });
+          prefetchQueries.push(q0);
+          if (!/\b(latest|current|today|right now|recent)\b/i.test(q0)) {
+            prefetchQueries.push(`latest ${q0}`);
+          }
+        }
         logLifecycle("live_news_prefetch_start", {
           searchRequired: newsSearchRequired,
           provider: "tavily",
@@ -773,9 +800,42 @@ export async function POST(req: Request) {
             prefetchQueries.map(async (q) => {
               const t0 = Date.now();
               try {
-                const res = await tavilySearch(q, { maxResults: 10 });
+                const [tavily, brave] = await Promise.allSettled([
+                  tavilySearch(q, { maxResults: 10 }),
+                  braveSearch(q, { maxResults: 8 }),
+                ]);
+                const responses: SearchResponse[] = [];
+                if (tavily.status === "fulfilled") responses.push(tavily.value);
+                if (brave.status === "fulfilled") responses.push(brave.value);
+                if (responses.length === 0) {
+                  const firstErr =
+                    tavily.status === "rejected"
+                      ? tavily.reason
+                      : brave.status === "rejected"
+                        ? brave.reason
+                        : new Error("No search providers returned results.");
+                  throw firstErr;
+                }
+                const res = mergeSearchResponses(responses, 12);
+                liveNewsToolActions.push({
+                  provider: "tavily+brave",
+                  query: q,
+                  results: (res.results ?? []).slice(0, 8).map((item) => ({
+                    title: item.title,
+                    url: item.url,
+                    snippet: (item.content ?? "").replace(/\s+/g, " ").trim().slice(0, 240),
+                    domain: (() => {
+                      try {
+                        return new URL(item.url).hostname.replace(/^www\./, "");
+                      } catch {
+                        return undefined;
+                      }
+                    })(),
+                    publishedAt: item.published_date,
+                  })),
+                });
                 logLifecycle("live_news_prefetch_query_ok", {
-                  provider: "tavily",
+                  provider: "tavily+brave",
                   query: q,
                   latencyMs: Date.now() - t0,
                   resultCount: res.results?.length ?? 0,
@@ -783,7 +843,7 @@ export async function POST(req: Request) {
                 return res;
               } catch (error: unknown) {
                 logLifecycle("live_news_prefetch_query_error", {
-                  provider: "tavily",
+                  provider: "tavily+brave",
                   query: q,
                   latencyMs: Date.now() - t0,
                   error: error instanceof Error ? error.message : String(error),
@@ -798,15 +858,27 @@ export async function POST(req: Request) {
           );
           liveNewsCache = mergeLiveNewsPrefetchResponses(responses);
           onLiveNews?.("clustering");
-          let clusters = clusterLiveNewsResults(liveNewsCache.results ?? []);
-          const rankingMode = getLiveNewsRankingMode(lastUserText);
-          clusters = rankClustersBySignificance(clusters, rankingMode);
-          preflightDominantShare = dominantDomainShare(clusters);
-          const diversity = buildSourceDiversityGuidance(clusters);
-          const clusterBlock = formatClustersForSystemPrompt(clusters, {
-            rankingMode,
-          });
-          const block = `\n\n**Retrieval note:** About ${Math.round((preflightDominantShare ?? 0) * 100)}% of raw results came from one domain — diversify headlines when possible.\n\n${diversity}\n\n${clusterBlock}`;
+          let block = "";
+          if (liveNewsGrounded) {
+            let clusters = clusterLiveNewsResults(liveNewsCache.results ?? []);
+            const rankingMode = getLiveNewsRankingMode(lastUserText);
+            clusters = rankClustersBySignificance(clusters, rankingMode);
+            preflightDominantShare = dominantDomainShare(clusters);
+            const diversity = buildSourceDiversityGuidance(clusters);
+            const clusterBlock = formatClustersForSystemPrompt(clusters, {
+              rankingMode,
+            });
+            block = `\n\n**Retrieval note:** About ${Math.round((preflightDominantShare ?? 0) * 100)}% of raw results came from one domain — diversify headlines when possible.\n\n${diversity}\n\n${clusterBlock}`;
+          } else {
+            const compact = (liveNewsCache.results ?? []).slice(0, 8);
+            const evidenceLines = compact
+              .map(
+                (r, i) =>
+                  `${i + 1}. [${r.title}](${r.url}) — ${r.content.replace(/\s+/g, " ").trim().slice(0, 220)}`,
+              )
+              .join("\n");
+            block = `\n\n## Best-effort web evidence pack (not fully grounded)\nUse the retrieved evidence below as primary context for this answer. Do not claim fully verified grounding. If evidence is weak or conflicting, say that explicitly.\n\n${evidenceLines}`;
+          }
           const sys0 = messagesWithIdentity[0];
           if (sys0?.role === "system") {
             messagesForModel = [
@@ -888,14 +960,40 @@ export async function POST(req: Request) {
           executedWebSearchQueries.push(sanitized);
           try {
             const searchResult = await tavilySearch(sanitized);
-            const filtered = liveNewsGrounded
+            const baseFiltered = liveNewsGrounded
               ? filterLiveNewsSearchResponse(searchResult)
               : searchResult;
+            const filtered =
+              liveNewsIntent || factIntent.currentFact
+                ? {
+                    ...baseFiltered,
+                    results: (baseFiltered.results ?? []).filter(
+                      (r) => !isLowAuthorityCitationUrl(r.url),
+                    ),
+                  }
+                : baseFiltered;
             logLifecycle("tool_search_success", {
               provider: "tavily",
               query: sanitized,
               latencyMs: Date.now() - searchStartedAt,
               resultCount: filtered.results?.length ?? 0,
+            });
+            liveNewsToolActions.push({
+              provider: "tavily",
+              query: sanitized,
+              results: (filtered.results ?? []).slice(0, 8).map((item) => ({
+                title: item.title,
+                url: item.url,
+                snippet: (item.content ?? "").replace(/\s+/g, " ").trim().slice(0, 240),
+                domain: (() => {
+                  try {
+                    return new URL(item.url).hostname.replace(/^www\./, "");
+                  } catch {
+                    return undefined;
+                  }
+                })(),
+                publishedAt: item.published_date,
+              })),
             });
             return filtered as unknown as Record<string, unknown>;
           } catch (err: unknown) {
@@ -912,25 +1010,27 @@ export async function POST(req: Request) {
         },
       });
 
-      const toolLoopArgs = {
-        tools: { webSearch: webSearchTool },
-        stopWhen: stepCountIs(12),
-        ...(forceFirstStepWebSearch
-          ? {
-              prepareStep: ({ stepNumber }: { stepNumber: number }) => {
-                if (stepNumber === 0) {
-                  return {
-                    toolChoice: {
-                      type: "tool" as const,
-                      toolName: "webSearch" as const,
-                    },
-                  };
+      const toolLoopArgs = useWebSearchToolLoop
+        ? {
+            tools: { webSearch: webSearchTool },
+            stopWhen: stepCountIs(12),
+            ...(forceFirstStepWebSearch
+              ? {
+                  prepareStep: ({ stepNumber }: { stepNumber: number }) => {
+                    if (stepNumber === 0) {
+                      return {
+                        toolChoice: {
+                          type: "tool" as const,
+                          toolName: "webSearch" as const,
+                        },
+                      };
+                    }
+                    return {};
+                  },
                 }
-                return {};
-              },
-            }
-          : {}),
-      };
+              : {}),
+          }
+        : undefined;
 
       const runGenerate = () => {
         executedWebSearchQueries.length = 0;
@@ -949,7 +1049,7 @@ export async function POST(req: Request) {
         return generateText({
           model: languageModel,
           messages: messagesForModel,
-          ...(useWebSearchToolLoop ? toolLoopArgs : {}),
+          ...(toolLoopArgs ?? {}),
         });
       };
 
@@ -1005,9 +1105,13 @@ export async function POST(req: Request) {
         path: "first_pass_generation_failure",
         userFacingReason: "tool_or_function_failure",
       });
+      const generationFailureMessage =
+        bestEffortWebAssist && prefetchSearchCompleted
+          ? `Web results were retrieved, but answer generation failed for this model (${modelDisplayName}). Please retry or switch models.`
+          : toolOrFunctionFailureUserMessage();
       return NextResponse.json(
         {
-          text: toolOrFunctionFailureUserMessage(),
+          text: generationFailureMessage,
           model: modelDisplayName,
           meta,
         } satisfies ChatAPIResponse,
@@ -1016,11 +1120,14 @@ export async function POST(req: Request) {
     }
 
     let result = firstPass.result;
-    let webQueries = resolveWebSearchQueriesForMeta(
+      let webQueries = resolveWebSearchQueriesForMeta(
       useWebSearchToolLoop,
       executedWebSearchQueries,
       result.steps,
     );
+      if (bestEffortWebAssist && webQueries.length === 0 && prefetchQueries.length > 0) {
+        webQueries = [...prefetchQueries];
+      }
 
     if (forceFirstStepWebSearch && webQueries.length === 0) {
       console.warn(
@@ -1103,7 +1210,11 @@ export async function POST(req: Request) {
           ? "live_search_not_completed"
           : "current_fact_search_not_completed",
       });
-    } else if (effectiveWebSearch && webQueries.length === 0) {
+    } else if (
+      effectiveWebSearch &&
+      webQueries.length === 0 &&
+      (liveNewsGrounded || factIntent.currentFact)
+    ) {
       responseText = stripFalseVerificationClaimsWhenNoTools(responseText);
       logLifecycle("no_search_calls_strip_verification_claims", {
         liveNews: liveNewsGrounded,
@@ -1164,6 +1275,8 @@ export async function POST(req: Request) {
       liveNewsStructured: liveNewsStructured ?? undefined,
       liveNewsPrefetchQueries:
         prefetchQueries.length > 0 ? prefetchQueries : undefined,
+      liveNewsToolActions:
+        liveNewsToolActions.length > 0 ? liveNewsToolActions : undefined,
     };
     logLifecycle("response_finalized", {
       elapsedMs: Date.now() - requestStartedAt,

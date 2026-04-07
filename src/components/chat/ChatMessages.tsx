@@ -61,7 +61,6 @@ function humanVerificationLabel(h: LiveNewsStructuredHeadline): string {
 }
 
 function extractLiveNewsHeaderMeta(markdown: string): {
-  title?: string;
   asOf?: string;
   domainCount?: number;
 } {
@@ -69,8 +68,6 @@ function extractLiveNewsHeaderMeta(markdown: string): {
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
-  const titleLine = lines.find((l) => /^#\s+/.test(l));
-  const title = titleLine ? titleLine.replace(/^#\s+/, "").trim() : undefined;
   const freshnessLine = lines.find((l) => /as of/i.test(l) && /drawn from/i.test(l));
   const asOf = freshnessLine
     ? freshnessLine
@@ -81,7 +78,7 @@ function extractLiveNewsHeaderMeta(markdown: string): {
     : undefined;
   const m = freshnessLine?.match(/drawn from\s+(\d+)\s+distinct news domains/i);
   const domainCount = m?.[1] ? Number.parseInt(m[1], 10) : undefined;
-  return { title, asOf, domainCount };
+  return { asOf, domainCount };
 }
 
 const LIVE_NEWS_PROGRESS_LABELS = [
@@ -162,28 +159,19 @@ function LiveNewsResearchSummary({ meta }: { meta: ChatAssistantMeta }) {
   );
 
   return (
-    <div className="ml-11 mb-1 text-[11px]">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-text-dim">
-        <span className="font-semibold text-text">Live research</span>
-        <span>·</span>
-        <span className="text-violet-300">{meta.liveNewsGrounded ? "Grounded" : "Not grounded"}</span>
-        <span>·</span>
-        <span>{n} search{n === 1 ? "" : "es"}</span>
-        <span>·</span>
-        <span>{domainsChecked} domains checked</span>
-        {queries.length > 0 || prefetchCount > 0 || headlineCount > 0 ? (
-          <>
-            <span>·</span>
-            <button
-              type="button"
-              className="font-semibold text-text hover:text-violet-300"
-              onClick={() => setOpen((v) => !v)}
-              aria-expanded={open}
-            >
-              {open ? "Hide details" : "View details"}
-            </button>
-          </>
-        ) : null}
+    <div className="ml-11 mt-3 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-text-muted">
+        <span className="font-medium text-text-dim">
+          Live sources checked
+        </span>
+        <button
+          type="button"
+          className="ml-1 font-medium text-text hover:text-violet-300"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          {open ? "Hide details" : "Details"}
+        </button>
       </div>
       {showFailure ? (
         <div className="mt-1 text-[10px] text-amber-300">
@@ -191,7 +179,18 @@ function LiveNewsResearchSummary({ meta }: { meta: ChatAssistantMeta }) {
         </div>
       ) : null}
       {open ? (
-        <div className="mt-2 border-l border-border/60 pl-3 text-[10px] text-text-muted">
+        <div className="mt-2 rounded-xl border border-border/50 bg-surface-overlay/35 p-3 text-[10px] text-text-muted">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span>{n} search call{n === 1 ? "" : "s"}</span>
+            <span>·</span>
+            <span>{domainsChecked} domains checked</span>
+            {meta.liveNewsGrounded ? (
+              <>
+                <span>·</span>
+                <span className="text-violet-300">Grounded</span>
+              </>
+            ) : null}
+          </div>
           {completedSteps.length > 0 ? (
             <ul className="space-y-1">
               {completedSteps.map((label) => (
@@ -219,6 +218,106 @@ function LiveNewsResearchSummary({ meta }: { meta: ChatAssistantMeta }) {
   );
 }
 
+function LiveResearchToolCards({ meta }: { meta: ChatAssistantMeta }) {
+  const actions = meta.liveNewsToolActions ?? [];
+  const [activeQuery, setActiveQuery] = useState<string | null>(null);
+  if (actions.length === 0) return null;
+
+  const selected = actions.find((a) => a.query === activeQuery) ?? null;
+
+  return (
+    <>
+      <div className="ml-11 mt-2 rounded-xl border border-border/60 bg-surface-overlay/20 p-3">
+        <p className="mb-3 text-[13px] text-text-muted">
+          I&apos;ll research the most important geopolitical events happening right now and
+          summarize the strongest verified developments.
+        </p>
+        <div className="space-y-2">
+          {actions.map((a, idx) => (
+            <div
+              key={`${a.provider}-${a.query}-${idx}`}
+              className="flex items-center justify-between rounded-lg border border-border/60 bg-bg-card/50 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-[0.1em] text-text-dim">
+                  Using Tool | Search
+                </div>
+                <div className="truncate text-[12px] text-text">{a.query}</div>
+              </div>
+              <button
+                type="button"
+                className="ml-3 rounded-md border border-border/70 bg-surface-overlay/50 px-2 py-1 text-[11px] font-medium text-text hover:text-violet-300"
+                onClick={() => setActiveQuery(a.query)}
+              >
+                View
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {selected ? (
+        <aside className="fixed left-4 top-20 z-40 h-[75vh] w-[360px] overflow-hidden rounded-xl border border-border bg-bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
+            <div>
+              <div className="text-[12px] font-semibold text-text">Search results</div>
+              <div className="max-w-[250px] truncate text-[11px] text-text-muted">
+                {selected.query}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-[11px] text-text-muted hover:text-text"
+              onClick={() => setActiveQuery(null)}
+            >
+              Close
+            </button>
+          </div>
+          <div className="h-[calc(75vh-50px)] space-y-2 overflow-y-auto p-3">
+            {selected.results.map((r, idx) => (
+              <a
+                key={`${r.url}-${idx}`}
+                href={r.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-lg border border-border/60 bg-surface-overlay/20 p-2 hover:bg-surface-overlay/35"
+              >
+                <div className="line-clamp-2 text-[12px] font-medium text-text">{r.title}</div>
+                <div className="mt-1 line-clamp-3 text-[11px] text-text-muted">{r.snippet}</div>
+                <div className="mt-1 text-[10px] text-text-dim">
+                  {r.publishedAt ? `${r.publishedAt} · ` : ""}
+                  {r.domain ?? "source"}
+                </div>
+              </a>
+            ))}
+          </div>
+        </aside>
+      ) : null}
+    </>
+  );
+}
+
+function buildLiveNewsTopSummary(
+  headlines: LiveNewsStructuredHeadline[],
+  domainCount?: number,
+): string {
+  const topics = [...new Set(headlines.map((h) => h.topicLabel).filter(Boolean))].slice(
+    0,
+    3,
+  );
+  if (topics.length >= 2) {
+    return `Here is a current snapshot of the most important developments being watched right now, based on recent reporting across ${domainCount ?? headlines.length} sources: ${topics.join(", ")}.`;
+  }
+  return "Here is a current snapshot of the most important developments being watched right now, based on recent live reporting across multiple sources.";
+}
+
+function normalizeTopicLabel(topic: string): string {
+  const trimmed = topic.trim();
+  if (!trimmed) return topic;
+  const lowered = trimmed.toLowerCase();
+  return lowered.charAt(0).toUpperCase() + lowered.slice(1);
+}
+
 function LiveNewsBriefCards({
   meta,
   visibleContent,
@@ -237,46 +336,49 @@ function LiveNewsBriefCards({
     return null;
   }
 
-  const { title, asOf, domainCount } = extractLiveNewsHeaderMeta(visibleContent);
+  const { asOf, domainCount } = extractLiveNewsHeaderMeta(visibleContent);
+  const topSummary = buildLiveNewsTopSummary(structured.headlines, domainCount);
 
   return (
-    <section className="ml-11 rounded-2xl bg-bg-card/55 px-5 py-4">
+    <section className="ml-11 max-w-2xl rounded-2xl border border-border/55 bg-bg-card/30 px-4 py-3">
       <div className="mb-4">
-        <div className="text-[var(--text-base)] font-semibold tracking-tight text-text">
-          {title || "Live global briefing"}
-        </div>
-        <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-text-dim/90">
-          {asOf ? <span>As of {asOf}</span> : null}
-          {typeof domainCount === "number" ? (
-            <span>{domainCount} distinct domains</span>
-          ) : null}
-          {typeof structured.dominantDomainShare === "number" ? (
-            <span>
-              {Math.round(structured.dominantDomainShare * 100)}% max single-domain share
-            </span>
-          ) : null}
+        <p className="text-[15px] leading-relaxed text-text">{topSummary}</p>
+        <div className="mt-1 text-[11px] text-text-dim">
+          Live sources checked
+          {typeof domainCount === "number" ? ` · ${domainCount} sources` : ""}
+          {asOf ? ` · Updated ${asOf}` : ""}
         </div>
       </div>
 
       <div className="divide-y divide-border/50">
         {structured.headlines.map((h, i) => (
           <article key={`${h.topicLabel}-${i}`} className="py-3 first:pt-0 last:pb-0">
-            <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-300">
-                {h.topicLabel}
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-[11px] font-medium text-violet-300/95">
+                {normalizeTopicLabel(h.topicLabel)}
               </span>
             </div>
 
-            <p className="text-[var(--text-sm)] font-medium leading-relaxed text-text">
+            <h3 className="text-[15px] font-semibold leading-relaxed text-text">
+              {i + 1}. {h.claim}
+            </h3>
+
+            <p className="mt-1 text-[13px] leading-relaxed text-text-muted">
+              <span className="font-medium text-text-dim">What is happening:</span>{" "}
               {h.claim}
             </p>
 
             {h.whyItMatters ? (
               <p className="mt-1.5 text-[13px] leading-relaxed text-text-muted">
-                <span className="font-semibold text-text-dim">Why it matters:</span>{" "}
+                <span className="font-medium text-text-dim">Why it matters:</span>{" "}
                 {h.whyItMatters}
               </p>
             ) : null}
+            <p className="mt-1.5 text-[13px] leading-relaxed text-text-muted">
+              <span className="font-medium text-text-dim">Likely outcomes:</span>{" "}
+              {h.likelyOutcomes ||
+                "Reporting is still developing, with outcomes likely to depend on the next diplomatic and security moves."}
+            </p>
 
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
               {h.citations.length > 0
@@ -293,11 +395,8 @@ function LiveNewsBriefCards({
                   </a>
                 ))
                 : null}
-              <span className="ml-1 text-[10px] font-medium uppercase tracking-[0.11em] text-text-dim">
+              <span className="inline-flex items-center rounded-full bg-surface-overlay/55 px-2 py-0.5 text-[10px] text-text-dim">
                 {humanVerificationLabel(h)}
-                {typeof h.independentDomainCount === "number"
-                  ? ` · ${h.independentDomainCount} domains`
-                  : ""}
               </span>
             </div>
           </article>
@@ -336,25 +435,22 @@ function UserMessage({
   attachments?: ChatAttachmentRef[];
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="max-w-[80%] rounded-2xl bg-bg-card border border-border px-4 py-3 text-[var(--text-md)] leading-[var(--leading-relaxed)] text-text">
+    <div className="flex flex-col items-end gap-2 w-full mt-2 mb-4">
+      <div className="max-w-[85%] md:max-w-[70%] rounded-3xl rounded-tr-md bg-surface-overlay-strong px-5 py-3 text-[var(--text-base)] leading-relaxed text-text">
         {attachments && attachments.length > 0 ? (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((a) => (
               <span
                 key={a.id}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-overlay px-2.5 py-1 text-[11px] font-semibold text-text-muted"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-bg-elevated px-3 py-1.5 text-[13px] font-medium text-text shadow-sm"
               >
-                <Paperclip className="h-3 w-3 shrink-0 opacity-80" />
-                <span className="max-w-[200px] truncate">{a.originalName}</span>
+                <Paperclip className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                <span className="max-w-[200px] truncate leading-none">{a.originalName}</span>
               </span>
             ))}
           </div>
         ) : null}
-        {content}
-      </div>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-invert text-surface-invert-text text-[var(--text-xs)] font-semibold shadow-sm">
-        DM
+        <div className="whitespace-pre-wrap">{content}</div>
       </div>
     </div>
   );
@@ -486,26 +582,30 @@ function AssistantMessage({
       : "typography-prose max-w-none pl-11";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-2.5 w-full mb-2">
       {/* Avatar + name */}
       <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-overlay-strong border border-border shadow-sm">
-          <Hexagon className="h-4 w-4 text-text" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-violet-500 shadow-sm ring-1 ring-violet-500/20">
+          <Hexagon className="h-4 w-4" strokeWidth={2.5} />
         </div>
-        <span className="text-[var(--text-base)] font-semibold text-text tracking-tight">
+        <span className="text-[15px] font-semibold text-text tracking-tight">
           Nexora
         </span>
       </div>
 
       {showTypingIndicator && <TypingIndicator />}
 
-      {assistantMeta ? <LiveNewsResearchSummary meta={assistantMeta} /> : null}
-
       {topContent}
+
+      {assistantMeta?.responseStyleIntent === "live_news" ? (
+        <LiveResearchToolCards meta={assistantMeta} />
+      ) : null}
 
       {assistantMeta && showLiveNewsCards ? (
         <LiveNewsBriefCards meta={assistantMeta} visibleContent={visibleContent} />
       ) : null}
+
+      {assistantMeta ? <LiveNewsResearchSummary meta={assistantMeta} /> : null}
 
       {/* Markdown body (think blocks stripped) */}
       {hasVisibleContent && !showLiveNewsCards && (
@@ -751,7 +851,7 @@ export function ChatMessages({
         : progressSteps;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 pb-60">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-60 pt-4">
       {messages.map((m, idx) => {
         const isLast = idx === messages.length - 1;
         const reportMode =

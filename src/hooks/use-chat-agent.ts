@@ -396,6 +396,7 @@ export function useChatAgent({
                 liveNewsFailureReason: meta.liveNewsFailureReason,
                 liveNewsStructured: meta.liveNewsStructured,
                 liveNewsPrefetchQueries: meta.liveNewsPrefetchQueries,
+                liveNewsToolActions: meta.liveNewsToolActions,
               }
             : undefined;
         const fallbackByMeta =

@@ -132,7 +132,7 @@ const WIRE_MAJOR =
 const OFFICIAL_HOST =
   /\.(?:gov|gob|go\.[a-z]{2}|edu|int)(?:\b|$)/i;
 const LOW_SIGNAL =
-  /(?:reddit|facebook|twitter|x\.com|tiktok|pinterest|tumblr|blogspot|wordpress\.com)$/i;
+  /(?:linkedin\.com|reddit|facebook|twitter|x\.com|tiktok|pinterest|tumblr|blogspot|wordpress\.com)$/i;
 
 export function extractDomain(url: string): string {
   try {
@@ -147,7 +147,7 @@ const WIKIPEDIA_HOST = /^(?:[a-z]{2,3}\.)?wikipedia\.org$/i;
 
 export function isExcludedLiveNewsSourceUrl(url: string): boolean {
   const host = extractDomain(url);
-  return WIKIPEDIA_HOST.test(host);
+  return WIKIPEDIA_HOST.test(host) || LOW_SIGNAL.test(host);
 }
 
 /** Drop Wikipedia (etc.) from Tavily payloads before clustering or display. */
@@ -691,7 +691,7 @@ export function formatClustersForSystemPrompt(
     "### Story clusters (pre-deduped — one headline per cluster)",
     `The backend merged similar URLs/snippets into **${clusters.length}** topic groups from **parallel topic-bucket** searches (not one narrow query). Articles within each cluster are **ordered by source quality** (wires, official, strong outlets first). Write **3–6** numbered headlines—**one primary story per cluster**—with **claim-level markdown links** (\`[Reuters](url)\`, \`[BBC](url)\`) **in** the bullet; a sources-only footer is **not** enough.`,
     "**Topic diversity:** When evidence allows, cover **≥3 distinct categories** (e.g. Politics / Economy / Science / Health–disaster / Diplomacy). Do not output four bullets about the same political thread.",
-    "**Per headline / bullet:** (1) **What happened** — one tight sentence; **every** outlet or title attribution must be a **markdown link**; **never** bare names like “Reuters said” or “according to BBC”. (2) Next line: **`*Why it matters:*`** one sentence — stakes for a global reader or why this belongs in a **world snapshot now**. (3) Then italic confidence (*Multi-source* · *N independent domains*, *Single-source*, etc.).",
+    "**Per headline / bullet:** (1) **What happened** — one tight sentence; **every** outlet or title attribution must be a **markdown link**; **never** bare names like “Reuters said” or “according to BBC”. (2) Next line: **`*Why it matters:*`** one sentence — stakes for a global reader or why this belongs in a **world snapshot now**. (3) Next line: **`*Likely outcomes:*`** one sentence — plausible near-term trajectories; if mixed, state uncertainty. (4) Then italic confidence (*Multi-source* · *N independent domains*, *Single-source*, etc.).",
     "**Per-bullet trust:** Use italic tags such as *Multi-source* · *Single-source* · *Conflicting reports* · *Developing* — honest and compact.",
     ...globalInstructions,
     "",
@@ -767,6 +767,7 @@ const headlineSchema = z.object({
   topicLabel: z.string(),
   claim: z.string(),
   whyItMatters: z.string().optional(),
+  likelyOutcomes: z.string().optional(),
   citations: z.array(citationSchema),
   verificationLevel: z.enum([
     "multi_source",
@@ -841,13 +842,20 @@ function normalizeStructuredPayload(
       const confidenceLabel =
         h.confidenceLabel?.trim() ||
         defaultConfidenceLabel(verificationLevel, count);
+      const whyItMatters =
+        h.whyItMatters?.trim() ||
+        "I was unable to fully assess why this matters from the currently retrieved sources.";
+      const likelyOutcomes =
+        h.likelyOutcomes?.trim() ||
+        "I was unable to assess likely outcomes confidently from current source coverage.";
       return {
         ...h,
         citations,
         verificationLevel,
         independentDomainCount: h.independentDomainCount ?? count,
         confidenceLabel,
-        whyItMatters: h.whyItMatters?.trim() || undefined,
+        whyItMatters,
+        likelyOutcomes,
       };
     }),
   };

@@ -250,10 +250,12 @@ You are answering a **current-events / headlines** style question. Behave like a
 ### Retrieval & verification
 1. Call **webSearch** at least once. The server prefetches **parallel topic-bucket** queries — for a **country/region** (e.g. politics, economy, fuel/inflation, health/agriculture, diplomacy) or for **world/earth** prompts (world news, geopolitics, global economy, science/space, humanitarian, diplomacy). Do **not** anchor retrieval on a single politician’s name unless the user asked about that person. If one theme still dominates, actively pull **other clusters** into the rundown so the user gets a **balanced briefing**, not one story repeated.
 2. **Major claims** (who did what, policy changes, casualty figures, election outcomes): require **two independent outlets or an official source** in the tool payload before stating them as fact. If only one source mentions it, label it with a **link**: *Reported by \`[outlet or headline](url)\`; independent confirmation not found in other results.*
+2b. If an item appears **single-source**, run **1–2 follow-up webSearch queries** from a different angle (e.g. alternate keywords, institution name, region angle) before finalizing. If still single-source, explicitly state: *I could only find one source confirming this — please verify independently.*
 3. **Source priority:** **Reuters, AP, BBC**-class wires first, then **official** domains, then **strong local** outlets. Use weaker or social sources only with a **Developing** or **Single-source** tag — never present them as if they were wire-confirmed.
 4. Prefer **newest, timestamped** URLs from results; note if snippets are thin or undated.
 5. If sources **conflict**, do not flatten: say *Reports differ:* and summarize each side with links.
 6. If tool results are **empty, error, or too weak** to summarize responsibly, say clearly: *I found limited reliable live reporting for this right now. Here’s the most recent verified information I could confirm* — then only what the payload supports, or say you cannot confirm.
+7. After grounding facts, add a brief **analysis layer**: second-order implications, likely stakeholder reactions, and near-term scenarios — not just headline restatement.
 
 ### Answer shape (use this structure unless the user asked for something narrower)
 1. **Title line** — \`# [Topic] — [Locale if relevant] — [calendar date]\` (date from tool snippets or user; never invent a future date).
@@ -262,7 +264,8 @@ You are answering a **current-events / headlines** style question. Behave like a
    - **Bold topic label** (e.g. **Geopolitics**, **Global economy**, **Science**).
    - **Line 1 — what happened:** one tight sentence with **2+ inline markdown links** *inside* the prose — e.g. \`Parliament sat as [Reuters](u1) and [BBC](u2) reported protests outside.\` **Do not** write bare outlet names (\`Reuters said…\`, \`according to AP\`); **every** attribution must be \`[Outlet or headline](url)\`.
    - **Line 2 — stakes:** **\`*Why it matters:*\`** one sentence: who is affected, what could change, or why a global reader should care **now** (not a second recap of the fact).
-   - **Line 3:** italic confidence — *\`Multi-source · N distinct domains\`* · *\`Single-source\`* · *\`Conflicting reports\`* · *\`Developing\`* · *\`Limited live coverage\`*.
+   - **Line 3 — outlook:** **\`*Likely outcomes:*\`** one sentence with plausible near-term trajectories from current reporting; if uncertain/conflicting, say so.
+   - **Line 4:** italic confidence — *\`Multi-source · N distinct domains\`* · *\`Single-source\`* · *\`Conflicting reports\`* · *\`Developing\`* · *\`Limited live coverage\`*.
    - Do **not** rank a **single-source** or **hyper-local** item above clearly broader stories unless the user scoped the question that way.
 4. **What Nexora checked** — Honest bullets only: e.g. ran **category-spread** live searches; compared overlapping reports; **summarized the most consistently reported developments**; **checked multiple current sources before summarizing**.
 5. **Footer** — *Sources checked:* name **news domains you cited** (prioritize **Reuters, AP, BBC**, official, strong local). **Omit Wikipedia** and encyclopedias. *Live summary — outlets update continuously.*
@@ -277,6 +280,7 @@ After the markdown above, end with **exactly one** fenced block:
       "topicLabel": "Politics",
       "claim": "One-sentence factual claim; mirror inline links as citations only (no bare outlet names in claim text).",
       "whyItMatters": "One sentence: stakes for global readers (required when 3+ headlines).",
+      "likelyOutcomes": "One sentence: near-term likely outcomes; use uncertainty if mixed/conflicting.",
       "citations": [
         { "title": "...", "url": "https://...", "domain": "example.com", "publishedAt": "optional ISO or omit" }
       ],
@@ -289,11 +293,12 @@ After the markdown above, end with **exactly one** fenced block:
 }
 \`\`\`
 
-Use **only** URLs you showed in tool results; **omit** Wikipedia. Each headline’s \`citations\` must mirror the **same** markdown links as the bullet (\`[outlet or headline](url)\`). Include \`whyItMatters\` for every item when possible. \`independentDomainCount\` = distinct domains in \`citations\`. \`dominantDomainShare\` = rough share of results from the single most common domain (0–1); estimate from clusters if needed.
+Use **only** URLs you showed in tool results; **omit** Wikipedia. Each headline’s \`citations\` must mirror the **same** markdown links as the bullet (\`[outlet or headline](url)\`). Include \`whyItMatters\` and \`likelyOutcomes\` for every item when possible. \`independentDomainCount\` = distinct domains in \`citations\`. \`dominantDomainShare\` = rough share of results from the single most common domain (0–1); estimate from clusters if needed.
 
 ### Style
 - **Claim-level grounding:** every headline has its **own** linked outlets (not one shared footer only); links are the **only** place outlet names appear in the claim line.
-- **Why it matters** is **obligatory** for each headline when you have room (3–6 items): one sentence, no duplicate of the claim.
+- **Why it matters** and **Likely outcomes** are **obligatory** for each headline when you have room (3–6 items): one sentence each, no duplicate of the claim.
+- **Completeness check (required):** if the user asked for multiple sub-parts per item, ensure every item answers every sub-part. If a sub-part cannot be answered from evidence, explicitly say so; never silently omit it.
 - No fake certainty. No filler about “as an AI”. No pretending you searched if webSearch did not run.`;
 
 export const CURRENT_FACT_SYSTEM_RULES = `
@@ -356,13 +361,22 @@ export function toolOrFunctionFailureUserMessage(): string {
 const FALSE_VERIFICATION_SENTENCE = /\b(?:I\s+(?:have\s+)?(?:verified|checked|confirmed)|I\s+used\s+(?:the\s+)?web(?:\s*search)?|I\s+searched\s+(?:online|for)|sources?\s+confirm|I\s+looked\s+it\s+up|according\s+to\s+(?:my\s+)?(?:search|sources|the\s+web)|after\s+(?:a\s+)?(?:quick\s+)?(?:web\s*)?search|from\s+(?:what|my)\s+(?:I\s+)?(?:found|see)\s+online)\b/i;
 
 export function stripFalseVerificationClaimsWhenNoTools(text: string): string {
-  const chunks = text.split(/(?<=[.!?])\s+/);
-  const kept = chunks.filter((c) => !FALSE_VERIFICATION_SENTENCE.test(c));
-  let out = kept.join(" ").replace(/\s{2,}/g, " ").trim();
-  out = out.replace(
-    /[,;]?\s*(?:which|and)\s+I\s+(?:have\s+)?(?:verified|checked|searched)\s+[^.!?]+(?=[.!?]|$)/gi,
-    "",
-  );
+  // Preserve markdown block structure by filtering sentence-like segments
+  // line-by-line instead of flattening the whole reply to one paragraph.
+  const lines = text.split("\n");
+  const cleanedLines = lines.map((line) => {
+    if (!line.trim()) return line;
+    const chunks = line.split(/(?<=[.!?])\s+/);
+    const kept = chunks.filter((c) => !FALSE_VERIFICATION_SENTENCE.test(c));
+    let out = kept.join(" ").replace(/\s{2,}/g, " ").trim();
+    out = out.replace(
+      /[,;]?\s*(?:which|and)\s+I\s+(?:have\s+)?(?:verified|checked|searched)\s+[^.!?]+(?=[.!?]|$)/gi,
+      "",
+    );
+    return out.trim();
+  });
+
+  const out = cleanedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (out.length < 8 && text.trim().length > 15) return text.trim();
   return out || text.trim();
 }
