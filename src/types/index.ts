@@ -107,6 +107,15 @@ export type ChatResponseMeta = {
     | "general_chat";
   /** Live-news grounded mode: structured briefing + forced web retrieval. */
   liveNewsGrounded?: boolean;
+  /** True when live-news retrieval was attempted in this turn. */
+  liveNewsSearchAttempted?: boolean;
+  /** True when at least one real live-news search path completed. */
+  liveNewsSearchCompleted?: boolean;
+  /** Why live-news retrieval did not complete (when applicable). */
+  liveNewsFailureReason?:
+    | "search_not_completed"
+    | "tool_loop_failed"
+    | "model_not_supported";
   /** Claim-level citations when the model emitted valid `nexora-live-news-json`. */
   liveNewsStructured?: LiveNewsStructuredPayload;
   /** Queries used in server-side live-news prefetch (before the model tool loop). */
@@ -120,6 +129,9 @@ export type ChatAssistantMeta = Pick<
   | "webSearchCalls"
   | "webSearchQueries"
   | "liveNewsGrounded"
+  | "liveNewsSearchAttempted"
+  | "liveNewsSearchCompleted"
+  | "liveNewsFailureReason"
   | "liveNewsStructured"
   | "liveNewsPrefetchQueries"
 >;

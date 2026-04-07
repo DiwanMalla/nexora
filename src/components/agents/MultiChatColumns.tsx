@@ -12,10 +12,6 @@
 
 import { useState, useCallback } from "react";
 import Image from "next/image";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import {
   MessageSquare,
   ChevronDown,
@@ -29,6 +25,7 @@ import { CommandBar } from "@/components/chat/CommandBar";
 import { useWorkspace } from "@/components/dashboard/WorkspaceProvider";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
 import { MessageActions } from "@/components/chat/MessageActions";
+import { MarkdownRenderer } from "@/components/markdown/MarkdownRenderer";
 import type { ComposerAttachment } from "@/hooks/use-composer-attachment";
 import type {
   AIModel,
@@ -444,12 +441,7 @@ function RoundView({
               <span className="h-2 w-2 animate-bounce rounded-full bg-violet-400" />
             </div>
           ) : (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-            >
-              {content}
-            </ReactMarkdown>
+            <MarkdownRenderer content={content} />
           )}
         </div>
         {response && !response.loading && (

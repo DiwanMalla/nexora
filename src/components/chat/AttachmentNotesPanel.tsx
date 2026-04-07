@@ -1,9 +1,8 @@
 "use client";
 
 import { X, FileText, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { AttachmentNote } from "@/types";
+import { MarkdownRenderer } from "@/components/markdown/MarkdownRenderer";
 
 type Props = {
   note: AttachmentNote | null;
@@ -74,9 +73,7 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
             </div>
             <div className="mt-1 rounded-lg border border-border bg-bg-card p-3 text-text">
               <div className="typography-prose max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {note.summary}
-                </ReactMarkdown>
+                <MarkdownRenderer content={note.summary} />
               </div>
             </div>
           </section>
@@ -107,9 +104,7 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
                   >
                     <div className="text-xs font-semibold text-text">{s.heading}</div>
                     <div className="mt-1 typography-prose max-w-none text-xs text-text-muted">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {s.content}
-                      </ReactMarkdown>
+                      <MarkdownRenderer content={s.content} />
                     </div>
                   </div>
                 ))}
@@ -158,9 +153,7 @@ export function AttachmentNotesPanel({ note, onClose }: Props) {
               </div>
               <div className="mt-1 rounded-lg border border-border bg-bg-card p-2.5 text-xs text-text-muted">
                 <div className="typography-prose max-w-none whitespace-pre-wrap">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {note.extractedTextPreview}
-                  </ReactMarkdown>
+                  <MarkdownRenderer content={note.extractedTextPreview} />
                 </div>
               </div>
             </section>

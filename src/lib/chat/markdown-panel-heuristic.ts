@@ -21,7 +21,7 @@ export function useAiChatQualityPanel(
   const c = stripThinkBlocks(rawContent).trim();
   if (c.length < 1) return false;
   if (/(^|\n)#{2,3}\s+\S/m.test(c)) return true;
-  if (/\n\|[^\n]+\|\s*\n\|[-:\s|]+\|/m.test(c)) return true;
+  if (/\n\|[^\n]+\|\s*\n\|(?:-|:|\s|\|)+\|/m.test(c)) return true;
   if (c.length >= 480) return true;
   return false;
 }

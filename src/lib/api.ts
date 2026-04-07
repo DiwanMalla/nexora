@@ -82,6 +82,7 @@ export async function sendChatMessageStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let last: ChatAPIResponse = {};
+  let sawDone = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -102,6 +103,19 @@ export async function sendChatMessageStream(
         onProgress(ev.stage);
       }
       if (ev.type === "done") {
+        sawDone = true;
+        if (
+          process.env.NODE_ENV !== "production" &&
+          typeof ev.text === "string" &&
+          /\|/.test(ev.text)
+        ) {
+          console.debug("[Nexora chat] stream done table debug", {
+            length: ev.text.length,
+            newlineCount: (ev.text.match(/\n/g) ?? []).length,
+            escapedNewlineCount: (ev.text.match(/\\n/g) ?? []).length,
+            rawJsonPreview: JSON.stringify(ev.text).slice(0, 1800),
+          });
+        }
         last = {
           text: ev.text,
           model: ev.model,
@@ -114,6 +128,10 @@ export async function sendChatMessageStream(
         throw new Error(ev.error || "Stream error.");
       }
     }
+  }
+
+  if (!sawDone) {
+    throw new Error("Live search did not complete.");
   }
 
   return last;

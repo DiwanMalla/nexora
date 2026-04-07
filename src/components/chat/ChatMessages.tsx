@@ -8,22 +8,22 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import { Hexagon, Paperclip, FileSearch, Eye } from "lucide-react";
 import { cn, stripThinkBlocks } from "@/lib/utils";
+import { normalizeMarkdownForRender } from "@/lib/markdown/normalize-markdown";
 import type {
   AttachmentNote,
   ChatAssistantMeta,
   ChatAttachmentRef,
   ChatMessage,
+  LiveNewsStructuredHeadline,
   LiveNewsStreamProgressStage,
 } from "@/types";
 import { MessageActions } from "./MessageActions";
 import { remarkOmniReportSections } from "@/lib/markdown/remark-omni-report-sections";
 import { useAiChatQualityPanel } from "@/lib/chat/markdown-panel-heuristic";
-import rehypeKatex from "rehype-katex";
+import { MarkdownRenderer } from "@/components/markdown/MarkdownRenderer";
+import { useEffect } from "react";
 
 export interface RoutingMetadata {
   model: string;
@@ -39,24 +39,49 @@ export interface ReplyImage {
 export type ReplyImageState = "idle" | "loading" | "done" | "error";
 
 function normalizeAssistantMarkdownForDisplay(input: string): string {
-  let text = input.replace(/\r\n/g, "\n").trim();
-  if (!text) return text;
+  return normalizeMarkdownForRender(input);
+}
 
-  // Ensure heading markers start on clean lines.
-  text = text.replace(/([^\n])\s(#{2,6}\s)/g, "$1\n\n$2");
+function humanVerificationLabel(h: LiveNewsStructuredHeadline): string {
+  if (h.confidenceLabel?.trim()) return h.confidenceLabel.trim();
+  switch (h.verificationLevel) {
+    case "multi_source":
+      return "Multi-source";
+    case "single_source":
+      return "Single-source";
+    case "conflicting":
+      return "Conflicting reports";
+    case "limited_coverage":
+      return "Limited coverage";
+    case "developing":
+      return "Developing";
+    default:
+      return "Reported";
+  }
+}
 
-  // Convert inline bullet markers (" ... - item") into real list lines.
-  text = text.replace(/([.:])\s+-\s+/g, "$1\n- ");
-  text = text.replace(/([a-z0-9\)])\s+-\s+(?=[A-Z])/g, "$1\n- ");
-
-  // Normalize compact list chains: "- A - B - C" -> multiline list.
-  text = text.replace(/\n-\s+([^\n]+?)\s+-\s+(?=[A-Z])/g, (_m, first) => {
-    return `\n- ${first}\n- `;
-  });
-
-  // Keep paragraphs/lists readable.
-  text = text.replace(/\n{3,}/g, "\n\n");
-  return text;
+function extractLiveNewsHeaderMeta(markdown: string): {
+  title?: string;
+  asOf?: string;
+  domainCount?: number;
+} {
+  const lines = markdown
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const titleLine = lines.find((l) => /^#\s+/.test(l));
+  const title = titleLine ? titleLine.replace(/^#\s+/, "").trim() : undefined;
+  const freshnessLine = lines.find((l) => /as of/i.test(l) && /drawn from/i.test(l));
+  const asOf = freshnessLine
+    ? freshnessLine
+        .replace(/\*\*/g, "")
+        .replace(/^As of\s*/i, "")
+        .split(/·/)[0]
+        ?.trim()
+    : undefined;
+  const m = freshnessLine?.match(/drawn from\s+(\d+)\s+distinct news domains/i);
+  const domainCount = m?.[1] ? Number.parseInt(m[1], 10) : undefined;
+  return { title, asOf, domainCount };
 }
 
 const LIVE_NEWS_PROGRESS_LABELS = [
@@ -99,102 +124,186 @@ function liveNewsStreamProgressSteps(
 
 function LiveNewsResearchSummary({ meta }: { meta: ChatAssistantMeta }) {
   const [open, setOpen] = useState(false);
-  if (meta.responseStyleIntent !== "live_news") return null;
+  const n = meta.webSearchCalls ?? 0;
+  const isGroundedWithSearch =
+    meta.responseStyleIntent === "live_news" &&
+    meta.liveNewsGrounded === true &&
+    meta.liveNewsSearchCompleted === true &&
+    n > 0;
+  if (!isGroundedWithSearch) return null;
 
   const queries = meta.webSearchQueries ?? [];
-  const n = meta.webSearchCalls ?? 0;
+  const prefetchCount = meta.liveNewsPrefetchQueries?.length ?? 0;
+  const searchAttempted = Boolean(meta.liveNewsSearchAttempted);
+  const searchCompleted = Boolean(meta.liveNewsSearchCompleted);
+  const structuredCount = meta.liveNewsStructured?.headlines.length ?? 0;
+  const completedSteps: string[] = [];
+  if (n > 0 || prefetchCount > 0) completedSteps.push("Searched trusted web sources");
+  if (n > 0) completedSteps.push("Opened live pages from results");
+  if (n >= 2 || prefetchCount >= 2) completedSteps.push("Compared overlapping reports");
+  if (structuredCount > 0) {
+    completedSteps.push("Summarized the most consistently reported updates");
+  }
+  if (n >= 2 || structuredCount > 0) {
+    completedSteps.push("Checked multiple current sources before summarizing");
+  }
+  const showFailure = searchAttempted && !searchCompleted;
+  const failureLabel =
+    meta.liveNewsFailureReason === "model_not_supported"
+      ? "Live search unavailable for this model"
+      : "Live search didn't complete";
+
+  const headlineCount = meta.liveNewsStructured?.headlines.length ?? 0;
+  const domainsChecked = Math.max(
+    headlineCount,
+    prefetchCount,
+    queries.length,
+    n,
+  );
 
   return (
-    <div className="ml-11 rounded-lg border border-border/80 bg-surface-overlay/40 px-3 py-2 text-[11px]">
-      <div className="mb-1.5 flex items-center gap-2 font-semibold text-text">
-        <span>Live research</span>
-        {meta.liveNewsGrounded ? (
-          <span className="rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-300">
-            Grounded
-          </span>
+    <div className="ml-11 mb-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-text-dim">
+        <span className="font-semibold text-text">Live research</span>
+        <span>·</span>
+        <span className="text-violet-300">{meta.liveNewsGrounded ? "Grounded" : "Not grounded"}</span>
+        <span>·</span>
+        <span>{n} search{n === 1 ? "" : "es"}</span>
+        <span>·</span>
+        <span>{domainsChecked} domains checked</span>
+        {queries.length > 0 || prefetchCount > 0 || headlineCount > 0 ? (
+          <>
+            <span>·</span>
+            <button
+              type="button"
+              className="font-semibold text-text hover:text-violet-300"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+            >
+              {open ? "Hide details" : "View details"}
+            </button>
+          </>
         ) : null}
       </div>
-      <ul className="space-y-1 text-text-muted">
-        <li className="flex gap-2">
-          <span aria-hidden>✓</span>
-          <span>Searched trusted web sources</span>
-        </li>
-        <li className="flex gap-2">
-          <span aria-hidden>✓</span>
-          <span>Opened live pages from results</span>
-        </li>
-        <li className="flex gap-2">
-          <span aria-hidden>✓</span>
-          <span>Compared overlapping reports</span>
-        </li>
-        <li className="flex gap-2">
-          <span aria-hidden>✓</span>
-          <span>Summarized the most consistently reported updates</span>
-        </li>
-        <li className="flex gap-2">
-          <span aria-hidden>✓</span>
-          <span>Checked multiple current sources before summarizing</span>
-        </li>
-      </ul>
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-        <span className="text-[10px] text-text-dim">
-          {n > 0
-            ? `${n} web search${n === 1 ? "" : "es"}`
-            : "No web searches recorded"}
-        </span>
-        {queries.length > 0 ||
-        (meta.liveNewsStructured &&
-          meta.liveNewsStructured.headlines.length > 0) ? (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded border border-border bg-bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            {open ? "Hide" : "View"}
-          </button>
-        ) : null}
-      </div>
-      {open && queries.length > 0 ? (
-        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded border border-border/60 bg-bg-card/50 px-2 py-1.5 text-[10px] text-text-muted">
-          {queries.map((q) => (
-            <li key={q} className="list-inside list-disc">
-              {q}
-            </li>
-          ))}
-        </ul>
+      {showFailure ? (
+        <div className="mt-1 text-[10px] text-amber-300">
+          {failureLabel}. No verified live-search evidence was returned in this turn.
+        </div>
       ) : null}
-      {open &&
-      meta.liveNewsStructured &&
-      meta.liveNewsStructured.headlines.length > 0 ? (
-        <div className="mt-2 border-t border-border/60 pt-2 text-[10px] text-text-muted">
-          <div className="mb-1 font-semibold text-text">
-            Structured claims ({meta.liveNewsStructured.headlines.length})
-          </div>
-          <ul className="max-h-32 space-y-1 overflow-y-auto">
-            {meta.liveNewsStructured.headlines.slice(0, 8).map((h, i) => (
-              <li key={`${h.topicLabel}-${i}`}>
-                <span className="font-medium text-text">{h.topicLabel}</span>
-                {h.confidenceLabel ? (
-                  <span className="text-text-dim">
-                    {" "}
-                    · <em>{h.confidenceLabel}</em>
-                  </span>
-                ) : null}
-                {h.whyItMatters ? (
-                  <div className="mt-0.5 text-text-dim leading-snug">
-                    <span className="font-medium not-italic text-text-muted">
-                      Why it matters:{" "}
-                    </span>
-                    {h.whyItMatters}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+      {open ? (
+        <div className="mt-2 border-l border-border/60 pl-3 text-[10px] text-text-muted">
+          {completedSteps.length > 0 ? (
+            <ul className="space-y-1">
+              {completedSteps.map((label) => (
+                <li key={label} className="flex gap-2">
+                  <span aria-hidden>✓</span>
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div>No completed live-research steps were recorded for this turn.</div>
+          )}
+          {queries.length > 0 ? (
+            <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto">
+              {queries.map((q) => (
+                <li key={q} className="list-inside list-disc">
+                  {q}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
     </div>
+  );
+}
+
+function LiveNewsBriefCards({
+  meta,
+  visibleContent,
+}: {
+  meta: ChatAssistantMeta;
+  visibleContent: string;
+}) {
+  const structured = meta.liveNewsStructured;
+  if (
+    !structured ||
+    !meta.liveNewsGrounded ||
+    !meta.liveNewsSearchCompleted ||
+    (meta.webSearchCalls ?? 0) <= 0 ||
+    structured.headlines.length === 0
+  ) {
+    return null;
+  }
+
+  const { title, asOf, domainCount } = extractLiveNewsHeaderMeta(visibleContent);
+
+  return (
+    <section className="ml-11 rounded-2xl bg-bg-card/55 px-5 py-4">
+      <div className="mb-4">
+        <div className="text-[var(--text-base)] font-semibold tracking-tight text-text">
+          {title || "Live global briefing"}
+        </div>
+        <div className="mt-1 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-text-dim/90">
+          {asOf ? <span>As of {asOf}</span> : null}
+          {typeof domainCount === "number" ? (
+            <span>{domainCount} distinct domains</span>
+          ) : null}
+          {typeof structured.dominantDomainShare === "number" ? (
+            <span>
+              {Math.round(structured.dominantDomainShare * 100)}% max single-domain share
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="divide-y divide-border/50">
+        {structured.headlines.map((h, i) => (
+          <article key={`${h.topicLabel}-${i}`} className="py-3 first:pt-0 last:pb-0">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-300">
+                {h.topicLabel}
+              </span>
+            </div>
+
+            <p className="text-[var(--text-sm)] font-medium leading-relaxed text-text">
+              {h.claim}
+            </p>
+
+            {h.whyItMatters ? (
+              <p className="mt-1.5 text-[13px] leading-relaxed text-text-muted">
+                <span className="font-semibold text-text-dim">Why it matters:</span>{" "}
+                {h.whyItMatters}
+              </p>
+            ) : null}
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {h.citations.length > 0
+                ? h.citations.slice(0, 6).map((c, idx) => (
+                  <a
+                    key={`${c.url}-${idx}`}
+                    href={c.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center rounded-full bg-surface-overlay/65 px-2 py-0.5 text-[10px] font-medium text-text-muted transition-colors hover:text-text"
+                    title={c.title}
+                  >
+                    {c.domain || c.title || "Source"}
+                  </a>
+                ))
+                : null}
+              <span className="ml-1 text-[10px] font-medium uppercase tracking-[0.11em] text-text-dim">
+                {humanVerificationLabel(h)}
+                {typeof h.independentDomainCount === "number"
+                  ? ` · ${h.independentDomainCount} domains`
+                  : ""}
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -348,6 +457,27 @@ function AssistantMessage({
     stripThinkBlocks(content),
   );
   const hasVisibleContent = Boolean(visibleContent.trim());
+  const showLiveNewsCards =
+    Boolean(assistantMeta?.liveNewsStructured?.headlines?.length) &&
+    assistantMeta?.responseStyleIntent === "live_news" &&
+    assistantMeta?.liveNewsGrounded === true &&
+    assistantMeta?.liveNewsSearchCompleted === true &&
+    (assistantMeta?.webSearchCalls ?? 0) > 0;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    if (!/\|/.test(content) && !/\|/.test(visibleContent)) return;
+    console.debug("[Nexora chat] assistant pre-render markdown debug", {
+      rawLength: content.length,
+      rawNewlineCount: (content.match(/\n/g) ?? []).length,
+      rawEscapedNewlineCount: (content.match(/\\n/g) ?? []).length,
+      normalizedLength: visibleContent.length,
+      normalizedNewlineCount: (visibleContent.match(/\n/g) ?? []).length,
+      normalizedEscapedNewlineCount: (visibleContent.match(/\\n/g) ?? []).length,
+      rawJsonPreview: JSON.stringify(content).slice(0, 1200),
+      normalizedJsonPreview: JSON.stringify(visibleContent).slice(0, 1200),
+    });
+  }, [content, visibleContent]);
 
   const containerBaseClass = reportMode
     ? "typography-prose omni-report-panel ml-11 max-w-none"
@@ -373,16 +503,17 @@ function AssistantMessage({
 
       {topContent}
 
+      {assistantMeta && showLiveNewsCards ? (
+        <LiveNewsBriefCards meta={assistantMeta} visibleContent={visibleContent} />
+      ) : null}
+
       {/* Markdown body (think blocks stripped) */}
-      {hasVisibleContent && (
+      {hasVisibleContent && !showLiveNewsCards && (
         <div className={containerBaseClass}>
-          <ReactMarkdown
-            remarkPlugins={
-              reportMode
-                ? [remarkGfm, remarkMath, remarkOmniReportSections()]
-                : [remarkGfm, remarkMath]
-            }
-            rehypePlugins={[rehypeKatex]}
+          <MarkdownRenderer
+            content={visibleContent}
+            skipNormalize
+            extraRemarkPlugins={reportMode ? [remarkOmniReportSections()] : undefined}
             components={
               reportMode
                 ? ({
@@ -390,9 +521,7 @@ function AssistantMessage({
                   } as any)
                 : undefined
             }
-          >
-            {visibleContent}
-          </ReactMarkdown>
+          />
         </div>
       )}
 

@@ -83,6 +83,28 @@ function getProviderForModelId(modelId: string): ModelProvider {
   return "Groq";
 }
 
+/**
+ * Some models are inconsistent with AI SDK tool-loop execution for forced
+ * live-news grounding. Keep them out of grounded mode until verified.
+ */
+function supportsGroundedLiveNewsToolFlow(modelId: string): boolean {
+  const unsupported = new Set([
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-safeguard-20b",
+  ]);
+  return !unsupported.has(modelId);
+}
+
+function previewForLog(text: string, max = 280): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length <= max ? clean : `${clean.slice(0, max)}...`;
+}
+
+function hasPipeTableSignal(text: string): boolean {
+  return /\|/.test(text) && (/\n\|/.test(text) || /\|\s*---/.test(text));
+}
+
 const WEB_SEARCH_SYSTEM_SUFFIX = `
 
 You have a tool named **webSearch** (Tavily) for live web facts. Call it when the user needs current events, recent news, time-sensitive facts, or verification against up-to-date sources.
@@ -312,6 +334,8 @@ export async function POST(req: Request) {
   }
 
   const messages = body.messages ?? [];
+  const requestId = crypto.randomUUID();
+  const requestStartedAt = Date.now();
   const model = body.model || DEFAULT_MODEL;
   const webSearchEnabled = body.webSearch !== false;
   const requestedConversationId =
@@ -388,6 +412,22 @@ export async function POST(req: Request) {
   const modelId = enabledModels.length === 1 ? enabledModels[0] : model;
   const modelDisplayName = getModelNameByApiId(modelId) ?? modelId;
   const modelProvider = getProviderForModelId(modelId);
+  const logLifecycle = (stage: string, details?: Record<string, unknown>) => {
+    console.log("[Nexora /api/chat] lifecycle", {
+      requestId,
+      stage,
+      modelId,
+      modelDisplayName,
+      modelProvider,
+      ...(details ?? {}),
+    });
+  };
+  logLifecycle("request_received", {
+    streamRequested: body.stream === true,
+    webSearchEnabled,
+    messageCount: messages.length,
+    enabledModelsCount: enabledModels.length,
+  });
   const languageModel =
     modelProvider === "OpenRouter"
       ? getOpenRouter()(modelId as Parameters<typeof groq>[0])
@@ -526,8 +566,16 @@ export async function POST(req: Request) {
     lastUserText,
     factIntent,
   );
-  const liveNewsGrounded =
+  const liveNewsIntent =
     responseStyleIntent === "live_news" && webSearchEnabled;
+  const liveNewsModelSupportsToolFlow =
+    supportsGroundedLiveNewsToolFlow(modelId);
+  const requiresToolFlowModel = liveNewsIntent || factIntent.currentFact;
+  const toolFlowModelUnsupported =
+    requiresToolFlowModel && !liveNewsModelSupportsToolFlow;
+  const liveNewsGrounded = liveNewsIntent && liveNewsModelSupportsToolFlow;
+  const liveNewsModelUnsupported =
+    liveNewsIntent && !liveNewsModelSupportsToolFlow;
   let effectiveWebSearch = webSearchEnabled || factIntent.currentFact;
   if (liveNewsGrounded) {
     effectiveWebSearch = true;
@@ -540,6 +588,22 @@ export async function POST(req: Request) {
     liveNewsGrounded &&
     effectiveWebSearch &&
     enabledModels.length <= 1;
+  logLifecycle("intent_classified", {
+    promptPreview: previewForLog(lastUserText, 320),
+    responseStyleIntent,
+    currentFactIntent: factIntent.currentFact,
+    currentFactReason: factIntent.reason ?? null,
+    liveNewsIntent,
+    liveNewsGrounded,
+    liveNewsModelSupportsToolFlow,
+    liveNewsModelUnsupported,
+    requiresToolFlowModel,
+    toolFlowModelUnsupported,
+    effectiveWebSearch,
+    newsSearchRequired,
+    forceFirstStepWebSearch,
+    useNdjsonStream,
+  });
 
   let systemPrompt = getAiChatSystemPromptWithModel(modelDisplayName);
   if (presentation.systemAddendum) {
@@ -650,22 +714,87 @@ export async function POST(req: Request) {
   }
 
   try {
+    if (toolFlowModelUnsupported) {
+      logLifecycle("tool_flow_model_unsupported", {
+        reason: "model_not_supported",
+        liveNewsIntent,
+        currentFactIntent: factIntent.currentFact,
+      });
+      const unsupportedText = `This model (${modelDisplayName}) doesn’t support Nexora’s live web-grounded flow yet. Please switch to a supported model (for example: GPT-4o mini, Llama 3.3 70B, or Gemini 2.5 Flash) for live-news/current-fact verification.`;
+      const meta: ChatResponseMeta = {
+        mode: "single",
+        provider: modelProvider,
+        modelId,
+        displayName: modelDisplayName,
+        webSearchEnabled: effectiveWebSearch,
+        webSearchCalls: 0,
+        stepCount: 0,
+        currentFactIntent: factIntent.currentFact,
+        currentFactReason: factIntent.reason,
+        currentFactGuardTriggered: false,
+        responseStyleIntent,
+        liveNewsGrounded: false,
+        liveNewsSearchAttempted: liveNewsIntent,
+        liveNewsSearchCompleted: false,
+        liveNewsFailureReason: "model_not_supported",
+      };
+      return NextResponse.json(
+        {
+          text: unsupportedText,
+          model: modelDisplayName,
+          meta,
+        } satisfies ChatAPIResponse,
+        { status: 200 },
+      );
+    }
+
     const chatTurn = async (
       onLiveNews?: (stage: LiveNewsProgressStage) => void,
     ): Promise<Response> => {
       let liveNewsCache: SearchResponse | null = null;
       let liveNewsConsumed = false;
       const prefetchQueries: string[] = [];
+      let prefetchSearchCompleted = false;
       let messagesForModel = messagesWithIdentity;
       let preflightDominantShare: number | undefined;
 
       if (liveNewsGrounded && effectiveWebSearch) {
         onLiveNews?.("searching");
         prefetchQueries.push(...buildLiveNewsPrefetchQueries(lastUserText));
+        logLifecycle("live_news_prefetch_start", {
+          searchRequired: newsSearchRequired,
+          provider: "tavily",
+          queryCount: prefetchQueries.length,
+          queries: prefetchQueries,
+        });
         onLiveNews?.("fetching");
         try {
           const responses = await Promise.all(
-            prefetchQueries.map((q) => tavilySearch(q, { maxResults: 10 })),
+            prefetchQueries.map(async (q) => {
+              const t0 = Date.now();
+              try {
+                const res = await tavilySearch(q, { maxResults: 10 });
+                logLifecycle("live_news_prefetch_query_ok", {
+                  provider: "tavily",
+                  query: q,
+                  latencyMs: Date.now() - t0,
+                  resultCount: res.results?.length ?? 0,
+                });
+                return res;
+              } catch (error: unknown) {
+                logLifecycle("live_news_prefetch_query_error", {
+                  provider: "tavily",
+                  query: q,
+                  latencyMs: Date.now() - t0,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                throw error;
+              }
+            }),
+          );
+          prefetchSearchCompleted = responses.some(
+            (r) =>
+              Boolean(r.answer?.trim()) || (r.results?.length ?? 0) > 0,
           );
           liveNewsCache = mergeLiveNewsPrefetchResponses(responses);
           onLiveNews?.("clustering");
@@ -685,15 +814,29 @@ export async function POST(req: Request) {
               ...messagesWithIdentity.slice(1),
             ];
           }
+          logLifecycle("live_news_prefetch_complete", {
+            searchCompleted: prefetchSearchCompleted,
+            mergedResultCount: liveNewsCache.results?.length ?? 0,
+            pageReadsCompleted: 0,
+            openedDocuments: 0,
+          });
         } catch (pe: unknown) {
           console.warn(
             "[Nexora /api/chat] live news preflight failed",
             pe instanceof Error ? pe.message : pe,
           );
           liveNewsCache = null;
+          prefetchSearchCompleted = false;
           prefetchQueries.length = 0;
+          logLifecycle("live_news_prefetch_failed", {
+            error: pe instanceof Error ? pe.message : String(pe),
+          });
         }
       }
+      logLifecycle("page_read_stage", {
+        pageReadsExecuted: false,
+        openedDocuments: 0,
+      });
 
       const executedWebSearchQueries: string[] = [];
 
@@ -708,11 +851,17 @@ export async function POST(req: Request) {
             ),
         }),
         execute: async ({ query }: { query: string }) => {
+          const searchStartedAt = Date.now();
           const sanitized = sanitizeLiveWebSearchQuery({
             query,
             userText: lastUserText,
             factIntent,
             liveNewsGrounded,
+          });
+          logLifecycle("tool_search_attempt", {
+            provider: "tavily",
+            rawQuery: query,
+            sanitizedQuery: sanitized,
           });
           if (sanitized !== query.trim()) {
             console.log(
@@ -727,6 +876,12 @@ export async function POST(req: Request) {
           if (liveNewsGrounded && liveNewsCache && !liveNewsConsumed) {
             liveNewsConsumed = true;
             executedWebSearchQueries.push(...prefetchQueries, sanitized);
+            logLifecycle("tool_search_resolved_from_prefetch_cache", {
+              provider: "tavily",
+              query: sanitized,
+              latencyMs: Date.now() - searchStartedAt,
+              resultCount: liveNewsCache.results?.length ?? 0,
+            });
             return liveNewsCache as unknown as Record<string, unknown>;
           }
 
@@ -736,10 +891,22 @@ export async function POST(req: Request) {
             const filtered = liveNewsGrounded
               ? filterLiveNewsSearchResponse(searchResult)
               : searchResult;
+            logLifecycle("tool_search_success", {
+              provider: "tavily",
+              query: sanitized,
+              latencyMs: Date.now() - searchStartedAt,
+              resultCount: filtered.results?.length ?? 0,
+            });
             return filtered as unknown as Record<string, unknown>;
           } catch (err: unknown) {
             const message =
               err instanceof Error ? err.message : "Search failed.";
+            logLifecycle("tool_search_error", {
+              provider: "tavily",
+              query: sanitized,
+              latencyMs: Date.now() - searchStartedAt,
+              error: message,
+            });
             return { error: message };
           }
         },
@@ -768,6 +935,17 @@ export async function POST(req: Request) {
       const runGenerate = () => {
         executedWebSearchQueries.length = 0;
         onLiveNews?.("summarizing");
+        const inputChars = messagesForModel.reduce(
+          (sum, m) => sum + m.content.length,
+          0,
+        );
+        logLifecycle("synthesis_start", {
+          synthesisModelId: modelId,
+          synthesisProvider: modelProvider,
+          inputMessageCount: messagesForModel.length,
+          inputChars,
+          inputTokenEstimate: Math.round(inputChars / 4),
+        });
         return generateText({
           model: languageModel,
           messages: messagesForModel,
@@ -777,8 +955,20 @@ export async function POST(req: Request) {
 
     const runGenerateOnce = async () => {
       try {
-        return { ok: true as const, result: await runGenerate() };
+        const t0 = Date.now();
+        const result = await runGenerate();
+        logLifecycle("synthesis_complete", {
+          latencyMs: Date.now() - t0,
+          stepCount: result.steps.length,
+          outputChars: result.text.trim().length,
+        });
+        return { ok: true as const, result };
       } catch (error: unknown) {
+        logLifecycle("synthesis_failed", {
+          latencyMs: 0,
+          failureStage: "before_or_during_generation",
+          error: error instanceof Error ? error.message : String(error),
+        });
         return { ok: false as const, error };
       }
     };
@@ -803,8 +993,18 @@ export async function POST(req: Request) {
         currentFactGuardTriggered: false,
         chatGenerationDegraded: true,
         responseStyleIntent,
-        liveNewsGrounded: liveNewsGrounded && effectiveWebSearch,
+        liveNewsGrounded: false,
+        liveNewsSearchAttempted: liveNewsGrounded && effectiveWebSearch,
+        liveNewsSearchCompleted: false,
+        liveNewsFailureReason:
+          liveNewsGrounded && effectiveWebSearch
+            ? "tool_loop_failed"
+            : undefined,
       };
+      logLifecycle("fallback_selected", {
+        path: "first_pass_generation_failure",
+        userFacingReason: "tool_or_function_failure",
+      });
       return NextResponse.json(
         {
           text: toolOrFunctionFailureUserMessage(),
@@ -846,8 +1046,20 @@ export async function POST(req: Request) {
           currentFactGuardTriggered: true,
           chatGenerationDegraded: true,
           responseStyleIntent,
-          liveNewsGrounded: liveNewsGrounded && effectiveWebSearch,
+          liveNewsGrounded: false,
+          liveNewsSearchAttempted: liveNewsGrounded && effectiveWebSearch,
+          liveNewsSearchCompleted: false,
+          liveNewsFailureReason:
+            liveNewsGrounded && effectiveWebSearch
+              ? "search_not_completed"
+              : undefined,
         };
+        logLifecycle("fallback_selected", {
+          path: "second_pass_generation_failure_after_zero_search_calls",
+          userFacingReason: newsSearchRequired
+            ? "live_search_not_completed"
+            : "current_fact_search_not_completed",
+        });
         return NextResponse.json(
           {
             text: newsSearchRequired
@@ -869,7 +1081,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const guardTriggered = forceFirstStepWebSearch && webQueries.length === 0;
+    const hasToolSearch = webQueries.length > 0;
+    const liveNewsSearchCompleted = hasToolSearch || prefetchSearchCompleted;
+    const guardTriggered =
+      forceFirstStepWebSearch &&
+      webQueries.length === 0 &&
+      !(newsSearchRequired && prefetchSearchCompleted);
     let responseText = result.text.trim();
     if (guardTriggered) {
       console.warn(
@@ -880,8 +1097,18 @@ export async function POST(req: Request) {
         : currentFactToolFailureUserMessage(
             "current office-holder / live fact",
           );
+      logLifecycle("fallback_selected", {
+        path: "search_guard_triggered_zero_tool_calls",
+        userFacingReason: newsSearchRequired
+          ? "live_search_not_completed"
+          : "current_fact_search_not_completed",
+      });
     } else if (effectiveWebSearch && webQueries.length === 0) {
       responseText = stripFalseVerificationClaimsWhenNoTools(responseText);
+      logLifecycle("no_search_calls_strip_verification_claims", {
+        liveNews: liveNewsGrounded,
+        currentFact: factIntent.currentFact,
+      });
     }
 
     let liveNewsStructured = liveNewsGrounded
@@ -900,6 +1127,15 @@ export async function POST(req: Request) {
       }
     }
 
+    if (hasPipeTableSignal(responseText)) {
+      logLifecycle("assistant_text_table_debug", {
+        textLength: responseText.length,
+        newlineCount: (responseText.match(/\n/g) ?? []).length,
+        escapedNewlineCount: (responseText.match(/\\n/g) ?? []).length,
+        rawJsonPreview: JSON.stringify(responseText).slice(0, 1800),
+      });
+    }
+
     const meta: ChatResponseMeta = {
       mode: "single",
       provider: modelProvider,
@@ -913,11 +1149,31 @@ export async function POST(req: Request) {
       currentFactReason: factIntent.reason,
       currentFactGuardTriggered: guardTriggered,
       responseStyleIntent,
-      liveNewsGrounded: liveNewsGrounded && effectiveWebSearch,
+      liveNewsGrounded:
+        liveNewsGrounded && effectiveWebSearch && liveNewsSearchCompleted,
+      liveNewsSearchAttempted: liveNewsGrounded && effectiveWebSearch,
+      liveNewsSearchCompleted:
+        liveNewsGrounded && effectiveWebSearch && liveNewsSearchCompleted,
+      liveNewsFailureReason:
+        liveNewsGrounded &&
+        effectiveWebSearch &&
+        !liveNewsSearchCompleted &&
+        newsSearchRequired
+          ? "search_not_completed"
+          : undefined,
       liveNewsStructured: liveNewsStructured ?? undefined,
       liveNewsPrefetchQueries:
         prefetchQueries.length > 0 ? prefetchQueries : undefined,
     };
+    logLifecycle("response_finalized", {
+      elapsedMs: Date.now() - requestStartedAt,
+      webSearchCalls: webQueries.length,
+      prefetchSearchCompleted,
+      liveNewsSearchCompleted,
+      liveNewsFailureReason: meta.liveNewsFailureReason ?? null,
+      currentFactGuardTriggered: guardTriggered,
+      responseTextChars: responseText.length,
+    });
 
     console.log(
       `[Nexora /api/chat] response ready: ${modelProvider}/${modelId} (${modelDisplayName}) effectiveWebSearch=${effectiveWebSearch} currentFact=${factIntent.currentFact} reason=${factIntent.reason ?? "n/a"} style=${responseStyleIntent} liveNews=${liveNewsGrounded} toolCalls=${webQueries.length} steps=${result.steps.length} guard=${guardTriggered} lastUserLen=${lastUserText.length}`,
@@ -937,7 +1193,18 @@ export async function POST(req: Request) {
             currentFactIntent: factIntent.currentFact,
             currentFactReason: factIntent.reason ?? null,
             responseStyleIntent,
-            liveNewsGrounded: liveNewsGrounded && effectiveWebSearch,
+            liveNewsGrounded:
+              liveNewsGrounded && effectiveWebSearch && liveNewsSearchCompleted,
+            liveNewsSearchAttempted: liveNewsGrounded && effectiveWebSearch,
+            liveNewsSearchCompleted:
+              liveNewsGrounded && effectiveWebSearch && liveNewsSearchCompleted,
+            liveNewsFailureReason:
+              liveNewsGrounded &&
+              effectiveWebSearch &&
+              !liveNewsSearchCompleted &&
+              newsSearchRequired
+                ? "search_not_completed"
+                : null,
             stepCount: result.steps.length,
           },
           citations:
@@ -975,6 +1242,7 @@ export async function POST(req: Request) {
 
     if (useNdjsonStream) {
       const encoder = new TextEncoder();
+      logLifecycle("streaming_mode_started", { mode: "ndjson" });
       return new Response(
         new ReadableStream({
           async start(controller) {
@@ -986,6 +1254,9 @@ export async function POST(req: Request) {
               const res = await chatTurn((stage) =>
                 send({ type: "progress", stage }),
               );
+              logLifecycle("streaming_chat_turn_completed", {
+                status: res.status,
+              });
               const payload = (await res.json()) as ChatAPIResponse;
               send({
                 type: "done",
@@ -996,6 +1267,10 @@ export async function POST(req: Request) {
                 details: payload.details,
               });
             } catch (e: unknown) {
+              logLifecycle("streaming_failed", {
+                failureStage: "during_streaming_before_done_event",
+                error: e instanceof Error ? e.message : String(e),
+              });
               send({
                 type: "error",
                 error:
@@ -1022,6 +1297,13 @@ export async function POST(req: Request) {
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Unable to generate chat response.";
+    console.error("[Nexora /api/chat] lifecycle", {
+      requestId,
+      modelId,
+      modelProvider,
+      stage: "route_failed_after_completion",
+      error: message,
+    });
     return NextResponse.json(
       {
         error: "Unable to generate chat response.",

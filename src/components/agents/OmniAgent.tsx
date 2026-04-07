@@ -22,6 +22,7 @@ import { useComposerAttachment } from "@/hooks/use-composer-attachment";
 import type { AttachmentNote, ChatAttachmentRef, ChatMessage } from "@/types";
 import { Bot as BotIcon } from "lucide-react";
 import { parseAttachmentNote } from "@/lib/attachments/note";
+import { joinAssistantTextParts } from "@/lib/chat/join-assistant-text-parts";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -47,10 +48,25 @@ function shouldFetchImagesForQuery(query: string): boolean {
 function getTextFromParts(
   parts: Array<{ type: string; text?: string }>,
 ): string {
-  return parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("");
+  const texts = parts
+    .filter(
+      (p): p is { type: "text"; text: string } =>
+        p.type === "text" && typeof p.text === "string",
+    )
+    .map((p) => p.text);
+  const joined = joinAssistantTextParts(texts);
+  if (
+    process.env.NODE_ENV !== "production" &&
+    texts.length > 1 &&
+    joined.includes("|")
+  ) {
+    console.debug("[Nexora Omni] multi-part assistant text joined", {
+      partCount: texts.length,
+      newlineCount: (joined.match(/\n/g) ?? []).length,
+      rawJsonPreview: JSON.stringify(joined).slice(0, 1200),
+    });
+  }
+  return joined;
 }
 
 type PipelineHeaderStep = {

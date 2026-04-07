@@ -202,6 +202,22 @@ export function useChatAgent({
             attachments:
               m.role === "user" ? attByMsg.get(m.id) : undefined,
           }));
+        if (process.env.NODE_ENV !== "production") {
+          const withPipes = loaded.filter(
+            (m) => m.role === "assistant" && /\|/.test(m.content),
+          );
+          if (withPipes.length > 0) {
+            console.debug("[Nexora chat] history hydration table debug", {
+              count: withPipes.length,
+              samples: withPipes.slice(0, 2).map((m) => ({
+                id: m.id,
+                newlineCount: (m.content.match(/\n/g) ?? []).length,
+                escapedNewlineCount: (m.content.match(/\\n/g) ?? []).length,
+                rawJsonPreview: JSON.stringify(m.content).slice(0, 900),
+              })),
+            });
+          }
+        }
         setMessages(loaded);
       })
       .catch(() => {
@@ -322,6 +338,19 @@ export function useChatAgent({
               return sendChatMessageStream(body, setLiveNewsStreamStage);
             })()
           : await sendChatMessage(body);
+        if (
+          process.env.NODE_ENV !== "production" &&
+          typeof payload.text === "string" &&
+          /\|/.test(payload.text)
+        ) {
+          console.debug("[Nexora chat] assistant payload table debug", {
+            source: useLiveNewsStream ? "stream" : "json",
+            length: payload.text.length,
+            newlineCount: (payload.text.match(/\n/g) ?? []).length,
+            escapedNewlineCount: (payload.text.match(/\\n/g) ?? []).length,
+            rawJsonPreview: JSON.stringify(payload.text).slice(0, 1800),
+          });
+        }
 
         if (payload.meta) {
           const {
@@ -351,24 +380,50 @@ export function useChatAgent({
         const meta = payload.meta;
         const assistantMeta =
           meta &&
-          (meta.responseStyleIntent === "live_news" ||
-            meta.liveNewsGrounded)
+          ((meta.responseStyleIntent === "live_news" &&
+            (typeof meta.webSearchCalls === "number" ||
+              Boolean(meta.liveNewsPrefetchQueries?.length) ||
+              Boolean(meta.liveNewsFailureReason))) ||
+            meta.liveNewsGrounded ||
+            meta.liveNewsSearchAttempted)
             ? {
                 responseStyleIntent: meta.responseStyleIntent,
                 webSearchCalls: meta.webSearchCalls,
                 webSearchQueries: meta.webSearchQueries,
                 liveNewsGrounded: meta.liveNewsGrounded,
+                liveNewsSearchAttempted: meta.liveNewsSearchAttempted,
+                liveNewsSearchCompleted: meta.liveNewsSearchCompleted,
+                liveNewsFailureReason: meta.liveNewsFailureReason,
                 liveNewsStructured: meta.liveNewsStructured,
                 liveNewsPrefetchQueries: meta.liveNewsPrefetchQueries,
               }
             : undefined;
+        const fallbackByMeta =
+          meta?.liveNewsFailureReason || meta?.currentFactGuardTriggered
+            ? "Live search did not complete."
+            : "I couldn't generate a response.";
+
+        const rawAssistant =
+          typeof payload.text === "string" ? payload.text : "";
+        const assistantBody =
+          rawAssistant.trim() === "" ? fallbackByMeta : rawAssistant;
+
+        if (
+          process.env.NODE_ENV !== "production" &&
+          assistantBody.includes("|")
+        ) {
+          console.debug("[Nexora chat] assistant message state (stored)", {
+            newlineCount: (assistantBody.match(/\n/g) ?? []).length,
+            rawJsonPreview: JSON.stringify(assistantBody).slice(0, 1200),
+          });
+        }
 
         setMessages((prev) => [
           ...prev,
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            content: payload.text?.trim() || "I couldn't generate a response.",
+            content: assistantBody,
             model: payload.model ?? meta?.modelId ?? selectedModel,
             assistantMeta,
           },

@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { CommandBar } from "@/components/chat/CommandBar";
 import { Bot, User, Presentation, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/markdown/MarkdownRenderer";
 
 type SlideDeck = {
   title: string;
@@ -212,7 +212,7 @@ export default function SlidesPage() {
                       )}
                     >
                       <div className="prose prose-invert prose-sm">
-                        <ReactMarkdown>{text}</ReactMarkdown>
+                        <MarkdownRenderer content={text} />
                       </div>
                     </div>
                   </div>
