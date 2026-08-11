@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import {
   PanelLeftClose,
@@ -40,6 +40,21 @@ const mainNav = [
 import { FOCUS_RING } from "@/lib/styles";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
+          <div className="w-60 shrink-0 border-r border-border bg-bg-elevated" />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
+      }
+    >
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </Suspense>
+  );
+}
+
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useUser();
