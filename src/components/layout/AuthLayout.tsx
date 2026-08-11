@@ -6,28 +6,23 @@ import React from "react";
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#060608] font-sans selection:bg-violet-500/30 selection:text-white">
-      {/* ─── Aurora / Glow Background ─── */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Main center glow - Violet */}
+      {/* Soft radial glows — no CSS filter:blur (expensive on integrated GPUs) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20 blur-[140px]"
+          className="absolute left-1/2 top-1/2 h-[70vmax] w-[70vmax] -translate-x-1/2 -translate-y-1/2 opacity-30"
           style={{
-            background: "radial-gradient(circle, #7C3AED 0%, transparent 70%)",
+            background:
+              "radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 65%)",
           }}
         />
-
-        {/* Secondary cyan glow */}
         <div
-          className="absolute -bottom-40 -left-20 w-[600px] h-[600px] rounded-full opacity-10 blur-[120px]"
+          className="absolute -bottom-32 -left-16 h-[50vmax] w-[50vmax] opacity-20"
           style={{
-            background: "radial-gradient(circle, #06B6D4 0%, transparent 70%)",
+            background:
+              "radial-gradient(circle, rgba(6,182,212,0.28) 0%, transparent 65%)",
           }}
         />
-
-        {/* Aurora mesh from globals.css */}
         <div className="aurora-mesh opacity-40" />
-
-        {/* Grain texture */}
         <div className="grain absolute inset-0 opacity-[0.03]" />
       </div>
 

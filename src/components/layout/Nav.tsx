@@ -28,7 +28,7 @@ export function Nav() {
     <header
       className={`fixed left-0 right-0 top-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "border-b border-white/[0.06] bg-[var(--bg)]/80 backdrop-blur-xl"
+          ? "border-b border-white/[0.06] bg-[var(--bg)]/90 backdrop-blur-md"
           : "bg-transparent"
       }`}
     >

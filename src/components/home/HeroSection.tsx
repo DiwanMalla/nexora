@@ -210,9 +210,13 @@ export function HeroSection() {
             </div>
           </div>
 
-          {/* Floating glow behind the card */}
+          {/* Soft glow — radial gradient, no large filter blur */}
           <div
-            className="absolute -inset-4 -z-10 rounded-3xl bg-gradient-to-br from-violet/[0.08] via-transparent to-cyan/[0.06] blur-2xl"
+            className="absolute -inset-8 -z-10 rounded-3xl opacity-80"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.06) 45%, transparent 70%)",
+            }}
             aria-hidden="true"
           />
         </motion.div>

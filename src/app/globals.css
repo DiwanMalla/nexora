@@ -108,15 +108,171 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Premium AI composer — frosted glass (workspace mock tokens) */
+/* Premium AI composer — frosted glass (lighter blur = less GPU cost) */
 .glass-composer {
-  background: rgba(0, 34, 90, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 34, 90, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(145, 170, 235, 0.15);
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.4),
     0 0 20px rgba(210, 187, 255, 0.1);
+}
+
+/* ─── Marketing surfaces (landing / auth) — GPU-friendly ─── */
+.grain {
+  pointer-events: none;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Static noise tile — avoids animated SVG filters */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  opacity: 0.5;
+  z-index: 1;
+}
+
+.aurora-mesh {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Soft gradients only — no infinite transform animation by default */
+.aurora-mesh::before,
+.aurora-mesh::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+
+.aurora-mesh::before {
+  top: -20%;
+  left: -10%;
+  width: 55%;
+  height: 70%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(124, 58, 237, 0.15) 0%,
+    transparent 70%
+  );
+}
+
+.aurora-mesh::after {
+  bottom: -15%;
+  right: -8%;
+  width: 50%;
+  height: 65%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(6, 182, 212, 0.12) 0%,
+    transparent 70%
+  );
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+}
+
+.dot-grid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 0
+  );
+  background-size: 32px 32px;
+}
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(124, 58, 237, 0.15),
+    rgba(6, 182, 212, 0.1),
+    transparent
+  );
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--violet-light);
+}
+
+.exec-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+  cursor: pointer;
+}
+
+.exec-block:hover {
+  border-color: var(--border-hover);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  color: var(--cyan-light);
+  font-family: var(--font-mono);
+}
+
+/* Static gradient border — avoids infinite @property animation */
+.gradient-border {
+  border: 1px solid rgba(124, 58, 237, 0.28);
+  background: var(--bg-card);
+  box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Focus ring for accessibility */
